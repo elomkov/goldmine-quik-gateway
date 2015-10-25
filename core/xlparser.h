@@ -55,6 +55,8 @@ public:
 
 	XlCell data(int row, int column) const;
 
+	std::vector<XlCell> getData() const;
+
 private:
 	int parseString(RawByteArrayParser& parser, XlPosition& pos);
 	int parseFloat(RawByteArrayParser& parser, XlPosition& pos);

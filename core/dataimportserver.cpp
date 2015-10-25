@@ -44,6 +44,12 @@ DataImportServer::~DataImportServer()
 {
 }
 
+void DataImportServer::registerTableParser(const TableParser::Ptr& parser)
+{
+	if(std::find(m_tableParsers.begin(), m_tableParsers.end(), parser) == m_tableParsers.end())
+		m_tableParsers.push_back(parser);
+}
+
 HDDEDATA DataImportServer::ddeCallback(UINT type, UINT fmt, HCONV hConv, HSZ hsz1, HSZ hsz2, HDDEDATA hData, ULONG_PTR dwData1, ULONG_PTR dwData2)
 {
 	LOG(DEBUG) << "Incoming DDE message: " << type;
@@ -66,7 +72,11 @@ HDDEDATA DataImportServer::ddeCallback(UINT type, UINT fmt, HCONV hConv, HSZ hsz
 		{
 			LOG(DEBUG) << "Client poke";
 
-			parseIncomingData(hData);
+			char topicBuf[256];
+			DdeQueryString(m_instanceId, hsz1, topicBuf, 256, CP_WINANSI);
+			std::string topic(topicBuf);
+
+			parseIncomingData(topic, hData);
 
 			LOG(DEBUG) << "Incoming table parsed";
 
@@ -78,7 +88,7 @@ HDDEDATA DataImportServer::ddeCallback(UINT type, UINT fmt, HCONV hConv, HSZ hsz
 	}
 }
 
-bool DataImportServer::parseIncomingData(HDDEDATA hData)
+bool DataImportServer::parseIncomingData(const std::string& topic, HDDEDATA hData)
 {
 	DWORD dataSize = 0;
 	BYTE* data = DdeAccessData(hData, &dataSize);
@@ -97,6 +107,11 @@ bool DataImportServer::parseIncomingData(HDDEDATA hData)
 
 		LOG(INFO) << "Incoming table: " << parser.width() << "x" << parser.height();
 
+		for(const auto& tp : m_tableParsers)
+		{
+			if(tp->acceptsTopic(topic))
+				tp->incomingTable(parser.width(), parser.height(), parser.getData());
+		}
 	}
 	catch(const std::exception& e)
 	{

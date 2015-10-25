@@ -38,7 +38,7 @@ namespace goldmine
 		Price = 0x01,
 		OpenInterest = 0x03,
 		BestBid = 0x04,
-		BestOffset = 0x05,
+		BestOffer = 0x05,
 		Depth = 0x06,
 		TheoryPrice = 0x07,
 		Volatility = 0x08,
@@ -55,7 +55,7 @@ namespace goldmine
 		{
 		}
 
-		decimal_fixed(double v) : value(::floor(v)), fractional(v - floor(v))
+		decimal_fixed(double v) : value(::floor(v)), fractional((v - floor(v)) * 1e9)
 		{
 
 		}
@@ -68,6 +68,7 @@ namespace goldmine
 
 	struct Tick
 	{
+		Tick() : packet_type((int)PacketType::Tick), timestamp(0), useconds(0), datatype(0), value(0), volume(0) {}
 		uint32_t packet_type; // = 0x01
 		uint64_t timestamp;
 		uint32_t useconds;

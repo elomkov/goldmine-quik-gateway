@@ -104,6 +104,11 @@ XlParser::XlCell XlParser::data(int row, int column) const
 	return m_data[row * m_width + column];
 }
 
+std::vector<XlParser::XlCell> XlParser::getData() const
+{
+	return m_data;
+}
+
 int XlParser::parseString(RawByteArrayParser& parser, XlPosition& pos)
 {
 	int length = parser.readByte();

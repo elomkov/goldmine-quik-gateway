@@ -10,6 +10,7 @@
 #include <ddeml.h>
 #include <string>
 #include <memory>
+#include "tables/tableparser.h"
 
 class DataImportServer
 {
@@ -19,16 +20,19 @@ public:
 	DataImportServer(const std::string& serverName, const std::string& topicName);
 	virtual ~DataImportServer();
 
+	void registerTableParser(const TableParser::Ptr& parser);
+
 public:
 	HDDEDATA ddeCallback(UINT type, UINT fmt, HCONV hConv, HSZ hsz1, HSZ hsz2, HDDEDATA hData, ULONG_PTR dwData1, ULONG_PTR dwData2);
 
 private:
-	bool parseIncomingData(HDDEDATA hData);
+	bool parseIncomingData(const std::string& topic, HDDEDATA hData);
 
 private:
 	HSZ m_appName;
 	HSZ m_topicName;
 	long unsigned int m_instanceId;
+	std::vector<TableParser::Ptr> m_tableParsers;
 };
 
 #endif /* CORE_DATAIMPORTSERVER_H_ */

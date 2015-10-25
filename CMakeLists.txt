@@ -30,13 +30,19 @@ set(src
 	binary/bytearrayparser.cpp
 	binary/rawbytearrayparser.cpp
 	
+	core/client.cpp
 	core/dataimportserver.cpp
+	core/datasink.cpp
 	core/eventloop.cpp
 	core/xlparser.cpp
+	
+	tables/currentparametertableparser.cpp
+	
+	time/timesource.cpp
 	
 	ui/mainwindow.cpp
 	)
 
 add_executable(${PROJECT} main.cpp ${src})
 target_link_libraries(${PROJECT} ${FLTK_LIBRARIES})
-target_link_libraries(${PROJECT} ${Boost_LIBRARIES})
+target_link_libraries(${PROJECT} ${Boost_LIBRARIES} -lzmq)
