@@ -37,12 +37,16 @@ public:
 
 	bool acceptsStream(const std::string& ticker, goldmine::Datatype datatype) const;
 
+	int getCredits() const;
+	void incrementCredits(int credits);
+
 private:
 	goldmine::Datatype mapDatatypeIdToDatatype(const std::string& datatypeId);
 
 private:
 	byte_array m_peerId;
 	std::vector<StreamMatcher> m_streamMatchers;
+	int m_credits;
 };
 
 #endif /* CORE_CLIENT_H_ */

@@ -30,7 +30,7 @@ void DataSink::incomingTick(const std::string& ticker, const goldmine::Tick& tic
 	*((uint32_t*)msgDatatype.data()) = tick.datatype;
 
 	zmq::message_t msgPacket(sizeof(tick));
-	memcpy(msgPacket.data(), reinterpret_cast<void*>(&tick), sizeof(tick));
+	memcpy(msgPacket.data(), reinterpret_cast<const void*>(&tick), sizeof(tick));
 
 	m_sink.send(msgTicker, ZMQ_SNDMORE);
 	m_sink.send(msgDatatype, ZMQ_SNDMORE);

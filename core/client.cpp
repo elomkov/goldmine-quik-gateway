@@ -55,7 +55,8 @@ boost::tribool StreamMatcher::match(const std::string& ticker_, goldmine::Dataty
 	return boost::indeterminate;
 }
 
-Client::Client(const byte_array& peerId) : m_peerId(peerId)
+Client::Client(const byte_array& peerId) : m_peerId(peerId),
+		m_credits(0)
 {
 }
 
@@ -131,4 +132,14 @@ bool Client::acceptsStream(const std::string& ticker, goldmine::Datatype datatyp
 			return false;
 	}
 	return false;
+}
+
+int Client::getCredits() const
+{
+	return m_credits;
+}
+
+void Client::incrementCredits(int credits)
+{
+	m_credits += credits;
 }

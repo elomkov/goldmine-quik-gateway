@@ -9,6 +9,7 @@
 #include "client.h"
 #include "dataimportserver.h"
 #include <zmq.hpp>
+#include "datasink.h"
 
 class EventLoop
 {
@@ -29,6 +30,12 @@ private:
 
 	void sendStreamPacket(const std::string& ticker, int datatype, void* packet, size_t packetSize);
 	void sendPacketTo(const byte_array& peerId, const std::string& ticker, void* packet, size_t packetSize);
+	void sendControlResponse(const byte_array& peerId);
+
+	Client::Ptr getClient(const byte_array& peerId);
+	void deleteClient(const byte_array& peerId);
+
+	void handleControlCommand(const byte_array& peerId, uint8_t* buffer, size_t size);
 
 private:
 	bool m_run;

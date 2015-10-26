@@ -4,6 +4,7 @@
 #include "ui/mainwindow.h"
 #include "core/eventloop.h"
 #include <zmq.hpp>
+#include "goldmine/data.h"
 
 int main(int argc, char** argv)
 {
@@ -11,7 +12,7 @@ int main(int argc, char** argv)
 	LOG(INFO) << "Goldmine quik gateway started";
 
 	zmq::context_t ctx;
-	EventLoop evloop(ctx, "tcp://127.0.0.1:5516", "inproc://tick-pipeline");
+	EventLoop evloop(ctx, "tcp://*:5516", "inproc://tick-pipeline");
 	evloop.start();
 
 	MainWindow wnd;

@@ -46,6 +46,7 @@ namespace goldmine
 		TotalDemand = 0x0a
 	};
 
+#pragma pack(push, 1)
 	struct decimal_fixed
 	{
 		int64_t value;
@@ -64,7 +65,7 @@ namespace goldmine
 		{
 			return (double)value + (double)fractional / 1e9;
 		}
-	} __attribute__((__packed__));
+	} __attribute__((packed,aligned(1)));
 
 	struct Tick
 	{
@@ -75,7 +76,7 @@ namespace goldmine
 		uint32_t datatype;
 		decimal_fixed value;
 		int32_t volume;
-	} __attribute__((__packed__));
+	} __attribute__((packed));
 
 	struct Summary
 	{
@@ -89,13 +90,15 @@ namespace goldmine
 		decimal_fixed close;
 		int32_t volume;
 		uint32_t summary_period_seconds;
-	} __attribute__((__packed__));
+	} __attribute__((packed));
 
 	struct Event
 	{
 		uint32_t packet_type; // = 0x03
 		uint32_t event_id;
-	} __attribute__((__packed__));
+	} __attribute__((packed));
+
+#pragma pack(pop)
 }
 
 #endif /* GOLDMINE_DATA_H_ */
