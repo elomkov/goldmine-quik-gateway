@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 set(PROJECT goldmine-quik-gateway)
 project(${PROJECT})
 
-find_package(FLTK REQUIRED)
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/gtest)
@@ -44,5 +42,5 @@ set(src
 	)
 
 add_executable(${PROJECT} main.cpp ${src})
-target_link_libraries(${PROJECT} ${FLTK_LIBRARIES})
+target_link_libraries(${PROJECT} -lfltk)
 target_link_libraries(${PROJECT} ${Boost_LIBRARIES} -lzmq)
