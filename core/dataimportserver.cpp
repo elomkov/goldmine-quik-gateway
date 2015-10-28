@@ -26,7 +26,7 @@ DataImportServer::DataImportServer(const std::string& serverName, const std::str
 	m_instanceId(0)
 {
 	gs_server = this;
-	if(DdeInitialize(&m_instanceId, theDdeCallback, APPCLASS_STANDARD, 0))
+	if(DdeInitialize(&m_instanceId, (PFNCALLBACK)theDdeCallback, APPCLASS_STANDARD, 0))
 		throw std::runtime_error("Unable to initialize DDE server");
 
 	m_appName = DdeCreateStringHandle(m_instanceId, serverName.c_str(), 0);

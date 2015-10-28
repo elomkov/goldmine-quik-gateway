@@ -4,11 +4,12 @@
 
 #include "currentparametertableparser.h"
 #include "log.h"
+#include <cstdlib>
 
 // Parameter table parser:
 // Required schema:
 // Without rows, without columns:
-// Code, Ask, Bid, Last price, Open Interest, Total ask, Total bid, Volume
+// Code, Bid, Ask, Last price, Open Interest, Total bid, Total ask, Volume
 
 CurrentParameterTableParser::CurrentParameterTableParser(const std::string& topic,
 		const DataSink::Ptr& datasink,
@@ -60,12 +61,49 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 	auto totalAsk = boost::get<double>(table[rowStart + 6]);
 	auto cumulativeVolume = boost::get<double>(table[rowStart + 7]);
 
+	long volume = 1;
 	long lastVolume = m_volumes[contractCode];
-	long volume = cumulativeVolume - lastVolume;
+	if(lastVolume == 0)
+	{
+		lastVolume = cumulativeVolume;
+	}
+	else
+	{
+		volume = cumulativeVolume - lastVolume;
+	}
 	m_volumes[contractCode] = cumulativeVolume;
 
-	double delta = lastPrice - m_prices[contractCode];
+	double delta = 0;
+
+	if(lastPrice == bidPrice)
+	{
+		delta = -1;
+	}
+	else if(lastPrice == askPrice)
+	{
+		delta = 1;
+	}
+	else if(lastPrice <= m_bids[contractCode])
+	{
+		delta = -1;
+	}
+	else if(lastPrice >= m_asks[contractCode])
+	{
+		delta = 1;
+	}
+	else if(lastPrice == m_prices[contractCode])
+	{
+		// Make a random guess
+		delta = (rand() % 2) == 0 ? 1 : -1;
+	}
+	else
+	{
+		delta = lastPrice - m_prices[contractCode];
+	}
+
 	m_prices[contractCode] = lastPrice;
+	m_bids[contractCode] = bidPrice;
+	m_asks[contractCode] = askPrice;
 
 	auto currentTime = m_timesource->preciseTimestamp();
 
