@@ -72,6 +72,9 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 		m_volumes[contractCode] = cumulativeVolume;
 	}
 
+	double delta = lastPrice - m_prices[contractCode];
+	m_prices[contractCode] = lastPrice;
+
 	auto currentTime = m_timesource->preciseTimestamp();
 
 	goldmine::Tick tick;
@@ -80,7 +83,7 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 
 	tick.datatype = (int)goldmine::Datatype::Price;
 	tick.value = lastPrice;
-	tick.volume = volume;
+	tick.volume = delta > 0 ? volume : -volume;
 	m_datasink->incomingTick(contractCode, tick);
 
 	tick.datatype = (int)goldmine::Datatype::BestBid;
