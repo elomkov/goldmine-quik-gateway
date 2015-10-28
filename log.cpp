@@ -15,6 +15,8 @@ void log_init(const std::string& logFilename, bool debug)
 	if(!debug)
 	{
 		defaultConf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime %levshort %msg");
+		defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+		defaultConf.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
 	}
 	else
 	{

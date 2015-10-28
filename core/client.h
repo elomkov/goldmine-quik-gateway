@@ -39,6 +39,7 @@ public:
 
 	int getCredits() const;
 	void incrementCredits(int credits);
+	int decrementCredits(int credits);
 
 private:
 	goldmine::Datatype mapDatatypeIdToDatatype(const std::string& datatypeId);

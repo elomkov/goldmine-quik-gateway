@@ -144,9 +144,10 @@ void EventLoop::sendStreamPacket(const std::string& ticker, int datatype, void* 
 {
 	for(const auto& client : m_clients)
 	{
-		if(client->acceptsStream(ticker, (goldmine::Datatype)datatype))
+		if(client->acceptsStream(ticker, (goldmine::Datatype)datatype) && (client->getCredits() > 0))
 		{
 			sendPacketTo(client->peerId(), ticker, packet, packetSize);
+			client->decrementCredits(1);
 		}
 	}
 }

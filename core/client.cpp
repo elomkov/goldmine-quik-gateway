@@ -143,3 +143,13 @@ void Client::incrementCredits(int credits)
 {
 	m_credits += credits;
 }
+
+int Client::decrementCredits(int credits)
+{
+	if(m_credits < credits)
+		credits = m_credits;
+
+	m_credits -= credits;
+	return credits;
+
+}
