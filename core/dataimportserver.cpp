@@ -105,7 +105,7 @@ bool DataImportServer::parseIncomingData(const std::string& topic, HDDEDATA hDat
 		XlParser parser;
 		parser.parse(data, dataSize);
 
-		LOG(INFO) << "Incoming table: " << parser.width() << "x" << parser.height();
+		LOG(DEBUG) << "Incoming table: " << parser.width() << "x" << parser.height();
 
 		for(const auto& tp : m_tableParsers)
 		{

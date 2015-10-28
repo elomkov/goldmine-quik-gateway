@@ -4,6 +4,7 @@
 
 #include "currentparametertableparser.h"
 #include "log.h"
+#include <cstdlib>
 
 // Parameter table parser:
 // Required schema:
@@ -69,11 +70,40 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 	else
 	{
 		volume = cumulativeVolume - lastVolume;
-		m_volumes[contractCode] = cumulativeVolume;
+	}
+	m_volumes[contractCode] = cumulativeVolume;
+
+	double delta = 0;
+
+	if(lastPrice == bidPrice)
+	{
+		delta = -1;
+	}
+	else if(lastPrice == askPrice)
+	{
+		delta = 1;
+	}
+	else if(lastPrice <= m_bids[contractCode])
+	{
+		delta = -1;
+	}
+	else if(lastPrice >= m_asks[contractCode])
+	{
+		delta = 1;
+	}
+	else if(lastPrice == m_prices[contractCode])
+	{
+		// Make a random guess
+		delta = (rand() % 2) == 0 ? 1 : -1;
+	}
+	else
+	{
+		delta = lastPrice - m_prices[contractCode];
 	}
 
-	double delta = lastPrice - m_prices[contractCode];
 	m_prices[contractCode] = lastPrice;
+	m_bids[contractCode] = bidPrice;
+	m_asks[contractCode] = askPrice;
 
 	auto currentTime = m_timesource->preciseTimestamp();
 

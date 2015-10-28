@@ -8,7 +8,7 @@
 
 int main(int argc, char** argv)
 {
-	log_init("goldmine-quik-gateway.log", true);
+	log_init("goldmine-quik-gateway.log", false);
 	LOG(INFO) << "Goldmine quik gateway started";
 
 	zmq::context_t ctx;

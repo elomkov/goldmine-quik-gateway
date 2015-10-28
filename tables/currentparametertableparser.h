@@ -29,6 +29,9 @@ private:
 	std::string m_topic;
 	std::unordered_map<std::string, unsigned long> m_volumes;
 	std::unordered_map<std::string, double> m_prices;
+	std::unordered_map<std::string, double> m_bids;
+	std::unordered_map<std::string, double> m_asks;
+
 	DataSink::Ptr m_datasink;
 	TimeSource::Ptr m_timesource;
 };
