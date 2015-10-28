@@ -8,7 +8,7 @@
 // Parameter table parser:
 // Required schema:
 // Without rows, without columns:
-// Code, Ask, Bid, Last price, Open Interest, Total ask, Total bid, Volume
+// Code, Bid, Ask, Last price, Open Interest, Total bid, Total ask, Volume
 
 CurrentParameterTableParser::CurrentParameterTableParser(const std::string& topic,
 		const DataSink::Ptr& datasink,
@@ -60,9 +60,17 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 	auto totalAsk = boost::get<double>(table[rowStart + 6]);
 	auto cumulativeVolume = boost::get<double>(table[rowStart + 7]);
 
+	long volume = 1;
 	long lastVolume = m_volumes[contractCode];
-	long volume = cumulativeVolume - lastVolume;
-	m_volumes[contractCode] = cumulativeVolume;
+	if(lastVolume == 0)
+	{
+		lastVolume = cumulativeVolume;
+	}
+	else
+	{
+		volume = cumulativeVolume - lastVolume;
+		m_volumes[contractCode] = cumulativeVolume;
+	}
 
 	auto currentTime = m_timesource->preciseTimestamp();
 
@@ -72,7 +80,7 @@ void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlPar
 
 	tick.datatype = (int)goldmine::Datatype::Price;
 	tick.value = lastPrice;
-	tick.volume =volume;
+	tick.volume = volume;
 	m_datasink->incomingTick(contractCode, tick);
 
 	tick.datatype = (int)goldmine::Datatype::BestBid;
