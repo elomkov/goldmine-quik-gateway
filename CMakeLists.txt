@@ -44,3 +44,27 @@ set(src
 add_executable(${PROJECT} main.cpp ${src})
 target_link_libraries(${PROJECT} -lfltk)
 target_link_libraries(${PROJECT} ${Boost_LIBRARIES} -lzmq)
+
+# testing
+
+include_directories(
+	${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Catch
+	${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Catch/single_include
+	${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/fused_gmock
+
+	${CMAKE_CURRENT_BINARY_DIR}
+	)
+	
+set(test_sources
+	3rdparty/fused_gmock/gmock-gtest-all.cc
+	tests/test.cpp
+	)
+	
+add_executable(${PROJECT}-test ${test_sources})
+set_target_properties(${PROJECT}-test PROPERTIES COMPILE_FLAGS "-O0 -g -fprofile-arcs -ftest-coverage")
+set_target_properties(${PROJECT}-test PROPERTIES LINK_FLAGS "-fprofile-arcs -lgcov")
+target_link_libraries(${PROJECT}-test  ${Boost_LIBRARIES} -lfltk)
+
+if(UNIX)
+	target_link_libraries(${PROJECT}-test ${Boost_LIBRARIES} -lpthread -ldl)
+endif(UNIX)
