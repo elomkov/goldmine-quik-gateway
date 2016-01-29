@@ -21,7 +21,7 @@ enum BlockType
 	tdtSkip = 7
 };
 
-XlParser::XlParser() : m_width(0), m_height(0)
+XlParser::XlParser()
 {
 }
 
@@ -41,14 +41,14 @@ void XlParser::parse(uint8_t* data, int datalength)
 	if(blocksize != 4)
 		throw std::runtime_error("Invalid table entry size: should be 4, got " + std::to_string(blocksize));
 
-	m_height = parser.readWord();
-	m_width = parser.readWord();
+	int height = parser.readWord();
+	int width = parser.readWord();
 
-	LOG(DEBUG) << "Table size: " << m_width << "x" << m_height;
+	m_table = std::make_shared<XlTable>(width, height);
 
-	m_data.assign(m_height * m_width, XlCell(XlEmpty()));
+	LOG(DEBUG) << "Table size: " << width << "x" << height;
 
-	XlPosition pos(0, 0, m_width, m_height);
+	XlPosition pos(0, 0, width, height);
 
 	while(!parser.atEnd())
 	{
@@ -85,30 +85,6 @@ void XlParser::parse(uint8_t* data, int datalength)
 	}
 }
 
-int XlParser::width() const
-{
-	return m_width;
-}
-
-int XlParser::height() const
-{
-	return m_height;
-}
-
-XlParser::XlCell XlParser::data(int row, int column) const
-{
-	if((row < 0) || (column < 0) || (row >= m_height) || (column >= m_width))
-		throw std::out_of_range(str(format("Invalid row/column requested: %d/%d, while table width/height: %d/%d")
-				% row % column % m_width % m_height ));
-
-	return m_data[row * m_width + column];
-}
-
-std::vector<XlParser::XlCell> XlParser::getData() const
-{
-	return m_data;
-}
-
 int XlParser::parseString(RawByteArrayParser& parser, XlPosition& pos)
 {
 	int length = parser.readByte();
@@ -119,7 +95,7 @@ int XlParser::parseString(RawByteArrayParser& parser, XlPosition& pos)
 	std::vector<uint8_t> buf(length);
 	parser.readBytes(buf.data(), length);
 	std::string s(buf.begin(), buf.end());
-	m_data[pos.linearize()] = s;
+	m_table->set(pos.row, pos.column, s);
 	return length + 1;
 }
 
@@ -127,6 +103,6 @@ int XlParser::parseFloat(RawByteArrayParser& parser, XlPosition& pos)
 {
 	double value = 0;
 	parser.readBytes(reinterpret_cast<uint8_t*>(&value), 8);
-	m_data[pos.linearize()] = value;
+	m_table->set(pos.row, pos.column, value);
 	return 8;
 }

@@ -28,20 +28,19 @@ bool CurrentParameterTableParser::acceptsTopic(const std::string& topic)
 	return topic == m_topic;
 }
 
-void CurrentParameterTableParser::incomingTable(int width, int height, const std::vector<XlParser::XlCell>& table)
+void CurrentParameterTableParser::incomingTable(const XlTable::Ptr& table)
 {
-	if(width < 8)
+	if(table->width() < 8)
 	{
-		LOG(WARNING) << "Truncated table: not enough columns, should be 8, got " << width;
+		LOG(WARNING) << "Truncated table: not enough columns, should be 8, got " << table->width();
 		return;
 	}
 
 	try
 	{
-		for(int row = 0; row < height; row++)
+		for(int row = 0; row < table->height(); row++)
 		{
-			int rowStart = row * width;
-			parseRow(rowStart, table);
+			parseRow(row, table);
 		}
 	}
 	catch(const std::exception& e)
@@ -50,16 +49,16 @@ void CurrentParameterTableParser::incomingTable(int width, int height, const std
 	}
 }
 
-void CurrentParameterTableParser::parseRow(int rowStart, const std::vector<XlParser::XlCell>& table)
+void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 {
-	auto contractCode = boost::get<std::string>(table[rowStart]);
-	auto bidPrice = boost::get<double>(table[rowStart + 1]);
-	auto askPrice = boost::get<double>(table[rowStart + 2]);
-	auto lastPrice = boost::get<double>(table[rowStart + 3]);
-	auto openInterest = boost::get<double>(table[rowStart + 4]);
-	auto totalBid = boost::get<double>(table[rowStart + 5]);
-	auto totalAsk = boost::get<double>(table[rowStart + 6]);
-	auto cumulativeVolume = boost::get<double>(table[rowStart + 7]);
+	auto contractCode = boost::get<std::string>(table->get(row, 0));
+	auto bidPrice = boost::get<double>(table->get(row, 1));
+	auto askPrice = boost::get<double>(table->get(row, 2));
+	auto lastPrice = boost::get<double>(table->get(row, 3));
+	auto openInterest = boost::get<double>(table->get(row, 4));
+	auto totalBid = boost::get<double>(table->get(row, 5));
+	auto totalAsk = boost::get<double>(table->get(row, 6));
+	auto cumulativeVolume = boost::get<double>(table->get(row, 7));
 
 	long volume = 1;
 	long lastVolume = m_volumes[contractCode];

@@ -7,7 +7,7 @@
 
 #include <boost/variant.hpp>
 #include "binary/rawbytearrayparser.h"
-
+#include "xltable.h"
 
 struct XlPosition
 {
@@ -41,30 +41,19 @@ struct XlPosition
 class XlParser
 {
 public:
-	struct XlEmpty {};
-
-	typedef boost::variant<int, double, std::string, XlEmpty> XlCell;
-
 	XlParser();
 	virtual ~XlParser();
 
 	void parse(uint8_t* data, int datalength);
 
-	int width() const;
-	int height() const;
-
-	XlCell data(int row, int column) const;
-
-	std::vector<XlCell> getData() const;
+	XlTable::Ptr getParsedTable() const { return m_table; }
 
 private:
 	int parseString(RawByteArrayParser& parser, XlPosition& pos);
 	int parseFloat(RawByteArrayParser& parser, XlPosition& pos);
 
 private:
-	std::vector<XlCell> m_data;
-	int m_width;
-	int m_height;
+	XlTable::Ptr m_table;
 };
 
 #endif /* CORE_XLPARSER_H_ */

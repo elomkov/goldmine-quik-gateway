@@ -20,10 +20,10 @@ public:
 	virtual ~CurrentParameterTableParser();
 
 	virtual bool acceptsTopic(const std::string& topic);
-	virtual void incomingTable(int width, int height, const std::vector<XlParser::XlCell>& table);
+	virtual void incomingTable(const XlTable::Ptr& table);
 
 private:
-	void parseRow(int rowStart, const std::vector<XlParser::XlCell>& table);
+	void parseRow(int row, const XlTable::Ptr& table);
 
 private:
 	std::string m_topic;

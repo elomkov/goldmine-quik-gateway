@@ -32,7 +32,9 @@ set(src
 	core/dataimportserver.cpp
 	core/datasink.cpp
 	core/eventloop.cpp
-	core/xlparser.cpp
+	
+	core/xltable/xlparser.cpp
+	core/xltable/xltable.cpp
 	
 	tables/currentparametertableparser.cpp
 	
@@ -58,12 +60,14 @@ include_directories(
 set(test_sources
 	3rdparty/fused_gmock/gmock-gtest-all.cc
 	tests/test.cpp
+	
+	tests/xl_test.cpp
 	)
 	
-add_executable(${PROJECT}-test ${test_sources})
+add_executable(${PROJECT}-test ${test_sources} ${src})
 set_target_properties(${PROJECT}-test PROPERTIES COMPILE_FLAGS "-O0 -g -fprofile-arcs -ftest-coverage")
 set_target_properties(${PROJECT}-test PROPERTIES LINK_FLAGS "-fprofile-arcs -lgcov")
-target_link_libraries(${PROJECT}-test  ${Boost_LIBRARIES} -lfltk)
+target_link_libraries(${PROJECT}-test  ${Boost_LIBRARIES} -lfltk -lzmq)
 
 if(UNIX)
 	target_link_libraries(${PROJECT}-test ${Boost_LIBRARIES} -lpthread -ldl)

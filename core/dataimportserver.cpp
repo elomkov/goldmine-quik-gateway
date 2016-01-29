@@ -7,7 +7,7 @@
 
 #include "dataimportserver.h"
 #include "log.h"
-#include "core/xlparser.h"
+#include "core/xltable/xlparser.h"
 
 #include <boost/scope_exit.hpp>
 #include <iomanip>
@@ -105,12 +105,14 @@ bool DataImportServer::parseIncomingData(const std::string& topic, HDDEDATA hDat
 		XlParser parser;
 		parser.parse(data, dataSize);
 
-		LOG(DEBUG) << "Incoming table: " << parser.width() << "x" << parser.height();
+		auto table = parser.getParsedTable();
+
+		LOG(DEBUG) << "Incoming table: " << table->width() << "x" << table->height();
 
 		for(const auto& tp : m_tableParsers)
 		{
 			if(tp->acceptsTopic(topic))
-				tp->incomingTable(parser.width(), parser.height(), parser.getData());
+				tp->incomingTable(table);
 		}
 	}
 	catch(const std::exception& e)
