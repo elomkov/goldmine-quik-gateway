@@ -17,10 +17,13 @@ add_definitions(-DBOOST_THREAD_USE_LIB)
 
 find_package(Boost COMPONENTS system thread REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
+include_directories(3rdparty/jsoncpp/json)
 
 add_definitions(-DELPP_THREAD_SAFE -DELPP_STACKTRACE_ON_CRASH)
 
 set(src
+	3rdparty/jsoncpp/jsoncpp.cpp
+
 	log.cpp
 	
 	binary/byte_array.cpp

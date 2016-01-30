@@ -8,7 +8,7 @@
 #include "tables/currentparametertableparser.h"
 #include "log.h"
 #include <cstring>
-#include "picojson/picojson.h"
+#include "json.h"
 
 EventLoop::EventLoop(zmq::context_t& ctx,
 		const std::string& controlEp,
@@ -217,20 +217,19 @@ void EventLoop::deleteClient(const byte_array& peerId)
 
 void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, size_t size)
 {
-	picojson::value root;
+	Json::Value root;
+	Json::Reader reader;
 	std::string err;
 
-	picojson::parse(root, buffer, buffer + size, &err);
-	if(!err.empty())
+	if(!reader.parse((const char*)buffer, (const char*)buffer + size, root))
 		throw std::runtime_error("Unable to parse incoming command: " + err);
 
-	auto obj = root.get<picojson::value::object>();
-	auto cmd = obj["command"].get<std::string>();
-	auto tickersValue = obj["tickers"].get<picojson::value::array>();
+	auto cmd = root["command"].asString();
+	auto tickersValue = root["tickers"];
 	std::vector<std::string> tickers;
 	for(const auto& ticker : tickersValue)
 	{
-		tickers.push_back(ticker.get<std::string>());
+		tickers.push_back(ticker.asString());
 	}
 	for(const auto& ticker : tickers)
 	{
