@@ -11,6 +11,38 @@
 // Without rows, without columns:
 // Code, Bid, Ask, Last price, Open Interest, Total bid, Total ask, Volume
 
+enum ColumnId
+{
+	ClassCode = 0,
+	Code,
+	Bid,
+	Ask,
+	LastPrice,
+	OpenInterest,
+	TotalBid,
+	TotalAsk,
+	Volume,
+	MaxId
+};
+static std::vector<std::string> gs_columnNames = {
+		"CLASS_CODE",
+		"CODE",
+		"bid",
+		"offer",
+		"last",
+		"numcontracts",
+		"biddeptht",
+		"offerdeptht",
+		"voltoday" };
+
+static int indexOf(const std::string& code)
+{
+	auto it = std::find(gs_columnNames.begin(), gs_columnNames.end(), code);
+	if(it != gs_columnNames.end())
+		return std::distance(gs_columnNames.begin(), it);
+	return -1;
+}
+
 CurrentParameterTableParser::CurrentParameterTableParser(const std::string& topic,
 		const DataSink::Ptr& datasink,
 		const TimeSource::Ptr& timesource) : m_topic(topic),
@@ -30,15 +62,13 @@ bool CurrentParameterTableParser::acceptsTopic(const std::string& topic)
 
 void CurrentParameterTableParser::incomingTable(const XlTable::Ptr& table)
 {
-	if(table->width() < 8)
-	{
-		LOG(WARNING) << "Truncated table: not enough columns, should be 8, got " << table->width();
-		return;
-	}
+	if(!schemaObtained())
+		obtainSchema(table);
 
 	try
 	{
-		for(int row = 0; row < table->height(); row++)
+		// Zeroth row is header
+		for(int row = 1; row < table->height(); row++)
 		{
 			parseRow(row, table);
 		}
@@ -49,60 +79,65 @@ void CurrentParameterTableParser::incomingTable(const XlTable::Ptr& table)
 	}
 }
 
+bool CurrentParameterTableParser::schemaObtained() const
+{
+	return !m_schema.empty();
+}
+
+void CurrentParameterTableParser::obtainSchema(const XlTable::Ptr& table)
+{
+	m_schema.resize(MaxId, -1);
+	for(int i = 0; i < table->width(); i++)
+	{
+		std::string header;
+
+		try
+		{
+			header = boost::get<std::string>(table->get(0, i));
+		}
+		catch(const boost::bad_get& e)
+		{
+			// Skip silently
+		}
+		int index = indexOf(header);
+		m_schema[index] = i;
+	}
+}
+
 void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 {
-	auto contractCode = boost::get<std::string>(table->get(row, 0));
-	auto bidPrice = boost::get<double>(table->get(row, 1));
-	auto askPrice = boost::get<double>(table->get(row, 2));
-	auto lastPrice = boost::get<double>(table->get(row, 3));
-	auto openInterest = boost::get<double>(table->get(row, 4));
-	auto totalBid = boost::get<double>(table->get(row, 5));
-	auto totalAsk = boost::get<double>(table->get(row, 6));
-	auto cumulativeVolume = boost::get<double>(table->get(row, 7));
+	std::string code;
+	try
+	{
+		auto contractClassCode = boost::get<std::string>(table->get(row, m_schema[ClassCode]));
+		auto contractCode = boost::get<std::string>(table->get(row, m_schema[Code]));
+		code = contractClassCode + ":" + contractCode;
+	}
+	catch(const boost::bad_get& e)
+	{
+		LOG(WARNING) << "Unable to parse contract code from table";
+		return;
+	}
 
 	long volume = 1;
-	long lastVolume = m_volumes[contractCode];
-	if(lastVolume == 0)
+	try
 	{
-		lastVolume = cumulativeVolume;
+		auto cumulativeVolume = boost::get<double>(table->get(row, m_schema[Volume]));\
+		long lastVolume = m_volumes[code];
+		if(lastVolume == 0)
+		{
+			lastVolume = cumulativeVolume;
+		}
+		else
+		{
+			volume = cumulativeVolume - lastVolume;
+		}
+		m_volumes[code] = cumulativeVolume;
 	}
-	else
+	catch(const boost::bad_get& e)
 	{
-		volume = cumulativeVolume - lastVolume;
+		// If we can't find volume column, we'll just work in tick volume mode
 	}
-	m_volumes[contractCode] = cumulativeVolume;
-
-	double delta = 0;
-
-	if(lastPrice == bidPrice)
-	{
-		delta = -1;
-	}
-	else if(lastPrice == askPrice)
-	{
-		delta = 1;
-	}
-	else if(lastPrice <= m_bids[contractCode])
-	{
-		delta = -1;
-	}
-	else if(lastPrice >= m_asks[contractCode])
-	{
-		delta = 1;
-	}
-	else if(lastPrice == m_prices[contractCode])
-	{
-		// Make a random guess
-		delta = (rand() % 2) == 0 ? 1 : -1;
-	}
-	else
-	{
-		delta = lastPrice - m_prices[contractCode];
-	}
-
-	m_prices[contractCode] = lastPrice;
-	m_bids[contractCode] = bidPrice;
-	m_asks[contractCode] = askPrice;
 
 	auto currentTime = m_timesource->preciseTimestamp();
 
@@ -110,28 +145,106 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 	tick.timestamp = currentTime.first;
 	tick.useconds = currentTime.second;
 
-	tick.datatype = (int)goldmine::Datatype::Price;
-	tick.value = lastPrice;
-	tick.volume = delta > 0 ? volume : -volume;
-	m_datasink->incomingTick(contractCode, tick);
+	try
+	{
+		double delta = 1;
+		auto lastPrice = boost::get<double>(table->get(row, m_schema[LastPrice]));
+		try
+		{
+			auto bidPrice = boost::get<double>(table->get(row, m_schema[Bid]));
+			auto askPrice = boost::get<double>(table->get(row, m_schema[Ask]));
 
-	tick.datatype = (int)goldmine::Datatype::BestBid;
-	tick.value = bidPrice;
-	tick.volume = 0;
-	m_datasink->incomingTick(contractCode, tick);
+			if(lastPrice == bidPrice)
+			{
+				delta = -1;
+			}
+			else if(lastPrice == askPrice)
+			{
+				delta = 1;
+			}
+			else if(lastPrice <= m_bids[code])
+			{
+				delta = -1;
+			}
+			else if(lastPrice >= m_asks[code])
+			{
+				delta = 1;
+			}
+			else if(lastPrice == m_prices[code])
+			{
+				// Make a random guess
+				delta = (rand() % 2) == 0 ? 1 : -1;
+			}
+			else
+			{
+				delta = lastPrice - m_prices[code];
+			}
 
-	tick.datatype = (int)goldmine::Datatype::BestOffer;
-	tick.value = askPrice;
-	tick.volume = 0;
-	m_datasink->incomingTick(contractCode, tick);
+			m_prices[code] = lastPrice;
+			m_bids[code] = bidPrice;
+			m_asks[code] = askPrice;
 
-	tick.datatype = (int)goldmine::Datatype::TotalDemand;
-	tick.value = totalBid;
-	tick.volume = 0;
-	m_datasink->incomingTick(contractCode, tick);
+			tick.datatype = (int)goldmine::Datatype::BestBid;
+			tick.value = bidPrice;
+			tick.volume = 0;
+			m_datasink->incomingTick(code, tick);
 
-	tick.datatype = (int)goldmine::Datatype::TotalSupply;
-	tick.value = totalAsk;
-	tick.volume = 0;
-	m_datasink->incomingTick(contractCode, tick);
+			tick.datatype = (int)goldmine::Datatype::BestOffer;
+			tick.value = askPrice;
+			tick.volume = 0;
+			m_datasink->incomingTick(code, tick);
+
+		}
+		catch(const boost::bad_get& e)
+		{
+			// If we don't have best bid/ask data we should do nothing
+		}
+
+		tick.datatype = (int)goldmine::Datatype::Price;
+		tick.value = lastPrice;
+		tick.volume = delta >= 0 ? volume : -volume;
+		m_datasink->incomingTick(code, tick);
+	}
+	catch(const boost::bad_get& e)
+	{
+		// Whatever
+	}
+
+
+	try
+	{
+		auto openInterest = boost::get<double>(table->get(row, m_schema[OpenInterest]));
+		tick.datatype = (int)goldmine::Datatype::OpenInterest;
+		tick.value = openInterest;
+		tick.volume = 0;
+		m_datasink->incomingTick(code, tick);
+	}
+	catch(const boost::bad_get& e)
+	{
+	}
+
+	try
+	{
+		auto totalBid = boost::get<double>(table->get(row, m_schema[TotalBid]));
+
+		tick.datatype = (int)goldmine::Datatype::TotalDemand;
+		tick.value = totalBid;
+		tick.volume = 0;
+		m_datasink->incomingTick(code, tick);
+	}
+	catch(const boost::bad_get& e)
+	{
+	}
+
+	try
+	{
+		auto totalAsk = boost::get<double>(table->get(row, m_schema[TotalAsk]));
+		tick.datatype = (int)goldmine::Datatype::TotalSupply;
+		tick.value = totalAsk;
+		tick.volume = 0;
+		m_datasink->incomingTick(code, tick);
+	}
+	catch(const boost::bad_get& e)
+	{
+	}
 }

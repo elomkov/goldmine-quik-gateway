@@ -23,6 +23,9 @@ public:
 	virtual void incomingTable(const XlTable::Ptr& table);
 
 private:
+	bool schemaObtained() const;
+	void obtainSchema(const XlTable::Ptr& table);
+
 	void parseRow(int row, const XlTable::Ptr& table);
 
 private:
@@ -31,6 +34,8 @@ private:
 	std::unordered_map<std::string, double> m_prices;
 	std::unordered_map<std::string, double> m_bids;
 	std::unordered_map<std::string, double> m_asks;
+
+	std::vector<int> m_schema;
 
 	DataSink::Ptr m_datasink;
 	TimeSource::Ptr m_timesource;
