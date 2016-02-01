@@ -67,10 +67,11 @@ void CurrentParameterTableParser::incomingTable(const XlTable::Ptr& table)
 
 	try
 	{
-		// Zeroth row is header
-		for(int row = 1; row < table->height(); row++)
+		for(int row = 0; row < table->height(); row++)
 		{
-			parseRow(row, table);
+			auto firstCell = table->get(row, 0);
+			if(!boost::get<XlTable::XlEmpty>(&firstCell))
+				parseRow(row, table);
 		}
 	}
 	catch(const std::exception& e)
@@ -111,7 +112,7 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 	{
 		auto contractClassCode = boost::get<std::string>(table->get(row, m_schema[ClassCode]));
 		auto contractCode = boost::get<std::string>(table->get(row, m_schema[Code]));
-		code = contractClassCode + ":" + contractCode;
+		code = contractClassCode + "#" + contractCode;
 	}
 	catch(const boost::bad_get& e)
 	{

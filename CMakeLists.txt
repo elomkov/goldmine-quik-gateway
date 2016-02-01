@@ -39,6 +39,7 @@ set(src
 	core/xltable/xlparser.cpp
 	core/xltable/xltable.cpp
 	
+	tables/alldealstableparser.cpp
 	tables/currentparametertableparser.cpp
 	
 	time/timesource.cpp
