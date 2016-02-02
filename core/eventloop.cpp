@@ -251,3 +251,13 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 
 	sendControlResponse(peerId);
 }
+
+DataImportServer::Ptr EventLoop::dataImportServer() const
+{
+	return m_dataImportServer;
+}
+
+DataSink::Ptr EventLoop::datasink() const
+{
+	return m_datasink;
+}
