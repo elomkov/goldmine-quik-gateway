@@ -41,6 +41,7 @@ set(src
 	
 	tables/alldealstableparser.cpp
 	tables/currentparametertableparser.cpp
+	tables/tableparserfactoryregistry.cpp
 	
 	time/timesource.cpp
 	

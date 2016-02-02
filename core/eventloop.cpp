@@ -42,10 +42,6 @@ void EventLoop::run()
 {
 	m_datasink->connect(m_incomingPipeEndpoint);
 	auto timesource = std::make_shared<TimeSource>();
-	auto alldealsparser = std::make_shared<AllDealsTableParser>("alld", m_datasink);
-	m_dataImportServer->registerTableParser(alldealsparser);
-	auto tableparser = std::make_shared<CurrentParameterTableParser>("default", m_datasink, timesource);
-	m_dataImportServer->registerTableParser(tableparser);
 
 	m_control.bind(m_controlEndpoint);
 	m_incomingPipe.bind(m_incomingPipeEndpoint);
@@ -250,4 +246,14 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 	}
 
 	sendControlResponse(peerId);
+}
+
+DataImportServer::Ptr EventLoop::dataImportServer() const
+{
+	return m_dataImportServer;
+}
+
+DataSink::Ptr EventLoop::datasink() const
+{
+	return m_datasink;
 }

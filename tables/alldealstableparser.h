@@ -21,6 +21,8 @@ public:
 
 	virtual void incomingTable(const XlTable::Ptr& table);
 
+	virtual void parseConfig(const Json::Value& root);
+
 private:
 	bool schemaObtained() const;
 	void obtainSchema(const XlTable::Ptr& table);
@@ -32,5 +34,7 @@ private:
 	DataSink::Ptr m_datasink;
 	std::vector<int> m_schema;
 };
+
+TableParser::Ptr createAllDealsTableParser(const std::string& topic, const DataSink::Ptr& datasink);
 
 #endif /* TABLES_ALLDEALSTABLEPARSER_H_ */

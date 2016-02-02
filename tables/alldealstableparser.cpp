@@ -132,6 +132,11 @@ void AllDealsTableParser::parseRow(int i, const XlTable::Ptr& table)
 	m_datasink->incomingTick(code, tick);
 }
 
+void AllDealsTableParser::parseConfig(const Json::Value& root)
+{
+
+}
+
 bool AllDealsTableParser::schemaObtained() const
 {
 	return !m_schema.empty();
@@ -157,4 +162,9 @@ void AllDealsTableParser::obtainSchema(const XlTable::Ptr& table)
 
 		LOG(DEBUG) << "[" << header << "] -> " << index;
 	}
+}
+
+TableParser::Ptr createAllDealsTableParser(const std::string& topic, const DataSink::Ptr& datasink)
+{
+	return std::make_shared<AllDealsTableParser>(topic, datasink);
 }

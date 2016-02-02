@@ -80,6 +80,11 @@ void CurrentParameterTableParser::incomingTable(const XlTable::Ptr& table)
 	}
 }
 
+void CurrentParameterTableParser::parseConfig(const Json::Value& root)
+{
+
+}
+
 bool CurrentParameterTableParser::schemaObtained() const
 {
 	return !m_schema.empty();
@@ -248,4 +253,9 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 	catch(const boost::bad_get& e)
 	{
 	}
+}
+
+TableParser::Ptr createCurrentParameterTableParser(const std::string& topic, const DataSink::Ptr& datasink, const TimeSource::Ptr& timesource)
+{
+	return std::make_shared<CurrentParameterTableParser>(topic, datasink, timesource);
 }

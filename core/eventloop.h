@@ -22,6 +22,9 @@ public:
 	void start();
 	void stop();
 
+	DataImportServer::Ptr dataImportServer() const;
+	DataSink::Ptr datasink() const;
+
 private:
 	void run();
 

@@ -22,6 +22,8 @@ public:
 	virtual bool acceptsTopic(const std::string& topic);
 	virtual void incomingTable(const XlTable::Ptr& table);
 
+	virtual void parseConfig(const Json::Value& root);
+
 private:
 	bool schemaObtained() const;
 	void obtainSchema(const XlTable::Ptr& table);
@@ -40,5 +42,7 @@ private:
 	DataSink::Ptr m_datasink;
 	TimeSource::Ptr m_timesource;
 };
+
+TableParser::Ptr createCurrentParameterTableParser(const std::string& topic, const DataSink::Ptr& datasink, const TimeSource::Ptr& timesource);
 
 #endif /* TABLES_CURRENTPARAMETERTABLEPARSER_H_ */
