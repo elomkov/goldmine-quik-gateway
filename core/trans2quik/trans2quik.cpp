@@ -30,4 +30,3 @@ Trans2QuikApi::~Trans2QuikApi()
 {
 	CloseHandle(m_handle);
 }
-4
