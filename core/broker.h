@@ -56,6 +56,7 @@ public:
 
 	State state() const { return m_state; }
 
+	std::string stringRepresentation() const;
 
 private:
 	int m_id;

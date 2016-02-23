@@ -6,7 +6,7 @@
 #include <functional>
 #include "log.h"
 
-static std::string serializeOrderState(Order::State state) const
+static std::string serializeOrderState(Order::State state)
 {
 	switch(state)
 	{
@@ -53,6 +53,7 @@ void BrokerServer::stop()
 
 void BrokerServer::run()
 {
+	LOG(INFO) << "Broker server started";
 	m_control.bind(m_controlEp.c_str());
 
 	zmq::socket_t orderStateSocket(m_context, ZMQ_PULL);
@@ -73,7 +74,7 @@ void BrokerServer::run()
 			{
 				try
 				{
-					handleControlSocket(control);
+					handleControlSocket(m_control);
 				}
 				catch(const std::runtime_error& e)
 				{
@@ -82,7 +83,7 @@ void BrokerServer::run()
 			}
 			else if(pollitems[1].revents == ZMQ_POLLIN)
 			{
-				handleSocketStateUpdate(control);
+				handleSocketStateUpdate(m_control, orderStateSocket);
 			}
 		}
 	}
@@ -113,6 +114,10 @@ void BrokerServer::handleControlSocket(zmq::socket_t& control)
 	const char* buffer = (const char*)msgCommand.data();
 	if(!reader.parse(buffer, buffer + msgCommand.size(), root))
 		throw std::runtime_error("Control: unable to parse incoming json");
+
+	std::string json(buffer, buffer + msgCommand.size());
+
+	LOG(DEBUG) << "BrokerServer: incoming JSON: " << json;
 
 	handleCommand(root, peerId);
 }

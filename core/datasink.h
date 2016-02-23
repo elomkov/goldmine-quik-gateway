@@ -8,6 +8,7 @@
 #include <memory>
 #include "goldmine/data.h"
 #include <zmq.hpp>
+#include "core/quotetable.h"
 
 class DataSink
 {
@@ -21,8 +22,11 @@ public:
 
 	void incomingTick(const std::string& ticker, const goldmine::Tick& tick);
 
+	void setQuoteTable(const QuoteTable::Ptr& table);
+
 private:
 	zmq::socket_t m_sink;
+	QuoteTable::Ptr m_table;
 };
 
 #endif /* CORE_DATASINK_H_ */

@@ -12,6 +12,9 @@
 #include "time/timesource.h"
 #include "tables/currentparametertableparser.h"
 #include "tables/alldealstableparser.h"
+#include "core/brokerserver.h"
+#include "core/quotetable.h"
+#include "core/brokers/virtualbroker.h"
 
 static void createTableParsers(const TableParserFactoryRegistry::Ptr& registry,
 		const Json::Value& root,
@@ -61,6 +64,13 @@ int main(int argc, char** argv)
 	createTableParsers(registry, root, evloop.dataImportServer(), evloop.datasink());
 
 	evloop.start();
+
+	auto quoteTable = std::make_shared<QuoteTable>();
+	evloop.datasink()->setQuoteTable(quoteTable);
+	auto broker = std::make_shared<VirtualBroker>(100000, quoteTable);
+	BrokerServer brokerServer(ctx, "tcp://*:5520", broker);
+
+	brokerServer.start();
 
 	MainWindow wnd;
 	wnd.show(argc, argv);
