@@ -31,10 +31,14 @@ set(src
 	binary/bytearrayparser.cpp
 	binary/rawbytearrayparser.cpp
 	
+	core/broker.cpp
+	core/brokerserver.cpp
 	core/client.cpp
 	core/dataimportserver.cpp
 	core/datasink.cpp
 	core/eventloop.cpp
+	core/quotetable.cpp
+	core/brokers/virtualbroker.cpp
 	
 	core/xltable/xlparser.cpp
 	core/xltable/xltable.cpp
