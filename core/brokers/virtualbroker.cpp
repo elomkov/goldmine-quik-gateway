@@ -16,7 +16,7 @@ VirtualBroker::~VirtualBroker()
 
 void VirtualBroker::submitOrder(const Order::Ptr& order)
 {
-	LOG(DEBUG) << "VirtualBroker: submitted order: " << order->stringRepresentation();
+	LOG(INFO) << "VirtualBroker: submitted order: " << order->stringRepresentation();
 
 	m_pendingOrders.push_back(order);
 	if(order->type() == Order::OrderType::Market)
@@ -24,13 +24,13 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 		auto bid = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid).value.toDouble();
 		auto offer = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer).value.toDouble();
 
-		_TRACE << bid << "/" << offer;
+		LOG(INFO) << bid << "/" << offer;
 
 		if(order->operation() == Order::Operation::Buy)
 		{
 			if(offer == 0)
 			{
-				_TRACE << "No offers";
+				LOG(INFO) << "No offers";
 				order->updateState(Order::State::Rejected);
 			}
 			else
@@ -38,12 +38,12 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 				double volume = offer * order->amount();
 				if(m_cash < volume)
 				{
-					_TRACE << "Not enough cash";
+					LOG(INFO) << "Not enough cash";
 					order->updateState(Order::State::Rejected);
 				}
 				else
 				{
-					_TRACE << "Order OK";
+					LOG(INFO) << "Order OK";
 					order->updateState(Order::State::Executed);
 					m_portfolio[order->security()] += order->amount();
 					m_cash -= volume;
@@ -55,7 +55,7 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 		{
 			if(bid == 0)
 			{
-				_TRACE << "No bids";
+				LOG(INFO) << "No bids";
 				order->updateState(Order::State::Rejected);
 			}
 			else
@@ -72,6 +72,7 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 	{
 		LOG(WARNING) << "Requested unsupported order type";
 	}
+	LOG(INFO) << "Cash: " << m_cash;
 }
 
 void VirtualBroker::cancelOrder(const Order::Ptr& order)

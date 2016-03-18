@@ -36,6 +36,7 @@ private:
 	std::string m_controlEp;
 	Broker::Ptr m_broker;
 	std::map<int, byte_array> m_orderPeers;
+	std::unique_ptr<zmq::socket_t> m_orderSocket;
 };
 
 #endif /* CORE_BROKERSERVER_H_ */

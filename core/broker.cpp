@@ -46,7 +46,7 @@ std::string Order::stringRepresentation() const
 {
 	std::stringstream ss;
 
-	ss << "LocalID: " << m_id << "; ClientAssignedID: " << clientAssignedId() <<
+	ss << "LocalID: " << m_id << "; ClientAssignedID: " << clientAssignedId() << "; " << 
 			opString(m_operation) << " " << amount() << " of " << security();
 
 	if(m_type == Order::OrderType::Limit)

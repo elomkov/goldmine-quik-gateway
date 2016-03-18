@@ -85,6 +85,7 @@ void EventLoop::handleControlSocket()
 {
 	zmq::message_t msgPeerId;
 	zmq::message_t msgDelimiter;
+	LOG(INFO) << "Incoming control message";
 
 	if(!m_control.recv(&msgPeerId, ZMQ_NOBLOCK))
 		throw std::runtime_error("Control: unable to read peer id");
@@ -99,6 +100,8 @@ void EventLoop::handleControlSocket()
 	if(!m_control.recv(&msgMessageType, ZMQ_NOBLOCK))
 		throw std::runtime_error("Control: unable to read message type");
 
+	if(msgMessageType.size() == 0)
+		throw std::runtime_error("Invalid message type frame");
 	int packetType = ((uint8_t*)msgMessageType.data())[0];
 	if(packetType == (int)goldmine::MessageType::Control)
 	{
@@ -216,6 +219,7 @@ void EventLoop::deleteClient(const byte_array& peerId)
 
 void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, size_t size)
 {
+	LOG(DEBUG) << "handleControlCommand";
 	Json::Value root;
 	Json::Reader reader;
 	std::string err;
@@ -224,6 +228,8 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 		throw std::runtime_error("Unable to parse incoming command: " + err);
 
 	auto cmd = root["command"].asString();
+	LOG(DEBUG) << "handleControlCommand: " << cmd;
+
 	auto tickersValue = root["tickers"];
 	std::vector<std::string> tickers;
 	for(const auto& ticker : tickersValue)
@@ -237,6 +243,8 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 
 	if(cmd == "start")
 	{
+		if(tickers.size() == 0)
+			throw std::runtime_error("Empty ticker list");
 		auto client = getClient(peerId);
 		if(client)
 			deleteClient(peerId);
@@ -246,6 +254,7 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 	}
 
 	sendControlResponse(peerId);
+	LOG(DEBUG) << "handleControlCommand done";
 }
 
 DataImportServer::Ptr EventLoop::dataImportServer() const

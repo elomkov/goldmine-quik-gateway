@@ -53,6 +53,7 @@ void BrokerServer::stop()
 
 void BrokerServer::run()
 {
+	m_running = true;
 	LOG(INFO) << "Broker server started";
 	m_control.bind(m_controlEp.c_str());
 
@@ -93,6 +94,7 @@ void BrokerServer::handleControlSocket(zmq::socket_t& control)
 {
 	zmq::message_t msgPeerId;
 	zmq::message_t msgDelimiter;
+	LOG(INFO) << "BrokerServer: incoming message";
 
 	if(!control.recv(&msgPeerId, ZMQ_NOBLOCK))
 		throw std::runtime_error("Control: unable to read peer id");
@@ -199,12 +201,15 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 
 void BrokerServer::orderCallback(const Order::Ptr& order)
 {
-	zmq::socket_t socket(m_context, ZMQ_PUSH);
-	socket.connect("inproc://order-state-socket");
+	if(!m_orderSocket)
+	{
+		m_orderSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_PUSH);
+		m_orderSocket->connect("inproc://order-state-socket");
+	}
 
 	int orderId = order->localId();
 	zmq::message_t msg(4);
 	memcpy(msg.data(), (void*)&orderId, 4);
 
-	socket.send(msg, 0);
+	m_orderSocket->send(msg, 0);
 }
