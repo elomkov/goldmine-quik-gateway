@@ -1,9 +1,6 @@
-/*
- * eventloop.h
- */
 
-#ifndef CORE_EVENTLOOP_H_
-#define CORE_EVENTLOOP_H_
+#ifndef QUOTESOURCESERVER_H
+#define QUOTESOURCESERVER_H
 
 #include <boost/thread.hpp>
 #include "client.h"
@@ -11,13 +8,13 @@
 #include <zmq.hpp>
 #include "datasink.h"
 
-class EventLoop
+class QuotesourceServer
 {
 public:
-	EventLoop(zmq::context_t& ctx,
+	QuotesourceServer(zmq::context_t& ctx,
 			const std::string& controlEp,
 			const std::string& incomingPipeEp);
-	virtual ~EventLoop();
+	virtual ~QuotesourceServer();
 
 	void start();
 	void stop();
@@ -55,4 +52,4 @@ private:
 	DataSink::Ptr m_datasink;
 };
 
-#endif /* CORE_EVENTLOOP_H_ */
+#endif /* ifndef QUOTESOURCESERVER_H */

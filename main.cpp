@@ -1,8 +1,8 @@
 
 #include "log.h"
 
+#include "core/quotesourceserver.h"
 #include "ui/mainwindow.h"
-#include "core/eventloop.h"
 #include <zmq.hpp>
 #include "goldmine/data.h"
 #include "version.h"
@@ -149,7 +149,7 @@ int main(int argc, char** argv)
 				{ return createAllDealsTableParser(topic, sink); });
 
 	zmq::context_t ctx;
-	EventLoop evloop(ctx, "tcp://*:5516", "inproc://tick-pipeline");
+	QuotesourceServer evloop(ctx, "tcp://*:5516", "inproc://tick-pipeline");
 
 	createTableParsers(registry, root, evloop.dataImportServer(), evloop.datasink());
 

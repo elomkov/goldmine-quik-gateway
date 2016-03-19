@@ -1,8 +1,6 @@
-/*
- * eventloop.cpp
- */
 
-#include "eventloop.h"
+#include "quotesourceserver.h"
+
 #include "datasink.h"
 #include "time/timesource.h"
 #include "tables/currentparametertableparser.h"
@@ -10,8 +8,9 @@
 #include "log.h"
 #include <cstring>
 #include "json.h"
+#include "exceptions.h"
 
-EventLoop::EventLoop(zmq::context_t& ctx,
+QuotesourceServer::QuotesourceServer(zmq::context_t& ctx,
 		const std::string& controlEp,
 		const std::string& incomingPipeEp) : m_run(false),
 	m_control(ctx, ZMQ_ROUTER),
@@ -23,22 +22,22 @@ EventLoop::EventLoop(zmq::context_t& ctx,
 	m_dataImportServer = std::make_shared<DataImportServer>("gold", "default");
 }
 
-EventLoop::~EventLoop()
+QuotesourceServer::~QuotesourceServer()
 {
 }
 
-void EventLoop::start()
+void QuotesourceServer::start()
 {
-	m_thread = boost::thread(std::bind(&EventLoop::run, this));
+	m_thread = boost::thread(std::bind(&QuotesourceServer::run, this));
 }
 
-void EventLoop::stop()
+void QuotesourceServer::stop()
 {
 	m_run = false;
 	m_thread.join();
 }
 
-void EventLoop::run()
+void QuotesourceServer::run()
 {
 	m_datasink->connect(m_incomingPipeEndpoint);
 	auto timesource = std::make_shared<TimeSource>();
@@ -52,53 +51,57 @@ void EventLoop::run()
 	m_run = true;
 	while(m_run)
 	{
-		int rc = zmq::poll(pollitems, 2, 1000);
-		if(rc < 0)
-			throw std::runtime_error("zmq::poll error, returned " + std::to_string(rc));
-
-		if(rc > 0)
+		try
 		{
-			if(pollitems[0].revents & ZMQ_POLLIN)
+			int rc = zmq::poll(pollitems, 2, 1000);
+			if(rc < 0)
+				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("zmq::poll error, returned " + std::to_string(rc)));
+
+			if(rc > 0)
 			{
-				try
+				if(pollitems[0].revents & ZMQ_POLLIN)
 				{
 					handleControlSocket();
 				}
-				catch(const std::runtime_error& e)
+				else if(pollitems[1].revents & ZMQ_POLLIN)
 				{
-					LOG(WARNING) << "Exception when handling message from control socket: " << e.what();
+					handleIncomingPipe();
+				}
+				else
+				{
+					LOG(WARNING) << "zmq::poll returned, but no input data is available";
 				}
 			}
-			else if(pollitems[1].revents & ZMQ_POLLIN)
-			{
-				handleIncomingPipe();
-			}
-			else
-			{
-				LOG(WARNING) << "zmq::poll returned, but no input data is available";
-			}
+		}
+		catch(const GoldmineQuikGatewayException& e)
+		{
+			LOG(WARNING) << "Exception in Quotesource server: " << e.what();
+		}
+		catch(const std::runtime_error& e)
+		{
+			LOG(WARNING) << "Exception in Quotesource server: " << e.what();
 		}
 	}
 }
 
-void EventLoop::handleControlSocket()
+void QuotesourceServer::handleControlSocket()
 {
 	zmq::message_t msgPeerId;
 	zmq::message_t msgDelimiter;
 	LOG(INFO) << "Incoming control message";
 
 	if(!m_control.recv(&msgPeerId, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read peer id");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read peer ID"));
 
 	uint8_t* peerIdData = reinterpret_cast<uint8_t*>(msgPeerId.data());
 	byte_array peerId(peerIdData, peerIdData + msgPeerId.size());
 
 	if(!m_control.recv(&msgDelimiter, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read delimiter");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read delimiter"));
 
 	zmq::message_t msgMessageType;
 	if(!m_control.recv(&msgMessageType, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read message type");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read message type"));
 
 	if(msgMessageType.size() == 0)
 		throw std::runtime_error("Invalid message type frame");
@@ -107,7 +110,7 @@ void EventLoop::handleControlSocket()
 	{
 		zmq::message_t msgCommand;
 		if(!m_control.recv(&msgCommand, ZMQ_NOBLOCK))
-			throw std::runtime_error("Control: unable to read control message");
+			BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read control message body"));
 
 		handleControlCommand(peerId, reinterpret_cast<uint8_t*>(msgCommand.data()), msgCommand.size());
 	}
@@ -115,13 +118,13 @@ void EventLoop::handleControlSocket()
 	{
 		auto client = getClient(peerId);
 		if(!client)
-			throw std::runtime_error("Got credit from unsubscribed client");
+			BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: got credit from unsubscribed client"));
 
 		client->incrementCredits(1);
 	}
 }
 
-void EventLoop::handleIncomingPipe()
+void QuotesourceServer::handleIncomingPipe()
 {
 	zmq::message_t msgTicker;
 	zmq::message_t msgDatatype;
@@ -142,7 +145,7 @@ void EventLoop::handleIncomingPipe()
 	sendStreamPacket(ticker, datatype, msgPacket.data(), msgPacket.size());
 }
 
-void EventLoop::sendStreamPacket(const std::string& ticker, int datatype, void* packet, size_t packetSize)
+void QuotesourceServer::sendStreamPacket(const std::string& ticker, int datatype, void* packet, size_t packetSize)
 {
 	for(const auto& client : m_clients)
 	{
@@ -154,7 +157,7 @@ void EventLoop::sendStreamPacket(const std::string& ticker, int datatype, void* 
 	}
 }
 
-void EventLoop::sendPacketTo(const byte_array& peerId, const std::string& ticker, void* packet, size_t packetSize)
+void QuotesourceServer::sendPacketTo(const byte_array& peerId, const std::string& ticker, void* packet, size_t packetSize)
 {
 	LOG(DEBUG) << "Sending packet: " << ticker << "; " << packetSize;
 
@@ -179,7 +182,7 @@ void EventLoop::sendPacketTo(const byte_array& peerId, const std::string& ticker
 	m_control.send(msgPacket, 0);
 }
 
-void EventLoop::sendControlResponse(const byte_array& peerId)
+void QuotesourceServer::sendControlResponse(const byte_array& peerId)
 {
 	zmq::message_t msgPeerId(peerId.size());
 	memcpy(msgPeerId.data(), peerId.data(), peerId.size());
@@ -199,7 +202,7 @@ void EventLoop::sendControlResponse(const byte_array& peerId)
 	m_control.send(msgResponse, 0);
 }
 
-Client::Ptr EventLoop::getClient(const byte_array& peerId)
+Client::Ptr QuotesourceServer::getClient(const byte_array& peerId)
 {
 	for(const auto& client : m_clients)
 	{
@@ -209,7 +212,7 @@ Client::Ptr EventLoop::getClient(const byte_array& peerId)
 	return Client::Ptr();
 }
 
-void EventLoop::deleteClient(const byte_array& peerId)
+void QuotesourceServer::deleteClient(const byte_array& peerId)
 {
 	auto it = std::find_if(m_clients.begin(), m_clients.end(),
 			[&](const Client::Ptr& client) { return client->peerId() == peerId; });
@@ -217,7 +220,7 @@ void EventLoop::deleteClient(const byte_array& peerId)
 		m_clients.erase(it);
 }
 
-void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, size_t size)
+void QuotesourceServer::handleControlCommand(const byte_array& peerId, uint8_t* buffer, size_t size)
 {
 	LOG(DEBUG) << "handleControlCommand";
 	Json::Value root;
@@ -249,7 +252,10 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 		if(client)
 			deleteClient(peerId);
 		client = std::make_shared<Client>(peerId);
-		client->addStreamMatcher(tickers[0]);
+		for(const auto ticker : tickers)
+		{
+			client->addStreamMatcher(ticker);
+		}
 		m_clients.push_back(client);
 	}
 
@@ -257,12 +263,12 @@ void EventLoop::handleControlCommand(const byte_array& peerId, uint8_t* buffer, 
 	LOG(DEBUG) << "handleControlCommand done";
 }
 
-DataImportServer::Ptr EventLoop::dataImportServer() const
+DataImportServer::Ptr QuotesourceServer::dataImportServer() const
 {
 	return m_dataImportServer;
 }
 
-DataSink::Ptr EventLoop::datasink() const
+DataSink::Ptr QuotesourceServer::datasink() const
 {
 	return m_datasink;
 }

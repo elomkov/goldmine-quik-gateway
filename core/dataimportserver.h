@@ -10,6 +10,7 @@
 #include <ddeml.h>
 #include <string>
 #include <memory>
+#include <stdexcept>
 #include "tables/tableparser.h"
 
 class DataImportServer

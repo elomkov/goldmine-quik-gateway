@@ -19,7 +19,7 @@ find_package(Boost COMPONENTS system thread REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(3rdparty/jsoncpp/json)
 
-add_definitions(-DELPP_THREAD_SAFE -DELPP_STACKTRACE_ON_CRASH)
+add_definitions(-DELPP_THREAD_SAFE)
 
 set(src
 	3rdparty/jsoncpp/jsoncpp.cpp
@@ -36,7 +36,7 @@ set(src
 	core/client.cpp
 	core/dataimportserver.cpp
 	core/datasink.cpp
-	core/eventloop.cpp
+	core/quotesourceserver.cpp
 	core/quotetable.cpp
 	core/brokers/virtualbroker.cpp
 	
@@ -57,6 +57,10 @@ target_link_libraries(${PROJECT} -lfltk)
 target_link_libraries(${PROJECT} ${Boost_LIBRARIES} -lzmq)
 
 # testing
+# GTest SUCCEED and FAIL conflict with Catch
+add_definitions(-DGTEST_DONT_DEFINE_SUCCEED -DGTEST_DONT_DEFINE_FAIL)
+
+
 
 include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Catch
