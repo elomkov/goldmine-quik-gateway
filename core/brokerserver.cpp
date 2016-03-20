@@ -74,7 +74,7 @@ void BrokerServer::run()
 		{
 			int rc = zmq::poll(pollitems, 1, 1000);
 			if(rc < 0)
-				BOOST_SCOPE_EXIT(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
+				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
 
 			if(rc > 0)
 			{
@@ -169,7 +169,7 @@ void BrokerServer::handleCommand(const Json::Value& root, const byte_array& peer
 		auto brokerOrder = std::make_shared<Order>(id, account, security, price, amount, op, t);
 
 		m_orderPeers[brokerOrder->localId()] = peerId;
-		m_broker->submitOrder(brokerOrder);
+		broker->submitOrder(brokerOrder);
 	}
 }
 
@@ -188,7 +188,15 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 
 	auto peerId = it->second;
 
-	auto order = m_broker->order(id);
+	Order::Ptr order;
+	for(const auto& broker : m_brokers)
+	{
+		order = broker->order(id);
+		if(order)
+			break;
+	}
+	if(!order)
+		BOOST_THROW_EXCEPTION(LogicError() << errinfo_str("Received order state update, but can't find corresponding broker"));
 
 	zmq::message_t msgPeerId(peerId.size());
 	memcpy(msgPeerId.data(), peerId.data(), peerId.size());

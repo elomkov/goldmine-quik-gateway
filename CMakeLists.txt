@@ -75,6 +75,7 @@ set(test_sources
 	tests/test.cpp
 	
 	tests/quotesourceserver_test.cpp
+	tests/virtualbroker_test.cpp
 	tests/xl_test.cpp
 	)
 	
