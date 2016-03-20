@@ -74,6 +74,7 @@ set(test_sources
 	3rdparty/fused_gmock/gmock-gtest-all.cc
 	tests/test.cpp
 	
+	tests/quotesourceserver_test.cpp
 	tests/xl_test.cpp
 	)
 	

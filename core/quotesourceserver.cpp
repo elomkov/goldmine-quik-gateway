@@ -29,6 +29,7 @@ QuotesourceServer::~QuotesourceServer()
 void QuotesourceServer::start()
 {
 	m_thread = boost::thread(std::bind(&QuotesourceServer::run, this));
+	m_run = true;
 }
 
 void QuotesourceServer::stop()
@@ -48,7 +49,6 @@ void QuotesourceServer::run()
 	zmq_pollitem_t pollitems[] = { { (void*)m_control, 0, ZMQ_POLLIN, 0 },
 		{ (void*)m_incomingPipe, 0, ZMQ_POLLIN, 0 } };
 
-	m_run = true;
 	while(m_run)
 	{
 		try

@@ -36,7 +36,8 @@ void DataSink::incomingTick(const std::string& ticker, const goldmine::Tick& tic
 	m_sink.send(msgDatatype, ZMQ_SNDMORE);
 	m_sink.send(msgPacket, 0);
 
-	m_table->updateQuote(ticker, tick);
+	if(m_table)
+		m_table->updateQuote(ticker, tick);
 }
 
 void DataSink::setQuoteTable(const QuoteTable::Ptr& table)

@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <utility>
 
 namespace goldmine
 {
@@ -61,9 +62,19 @@ namespace goldmine
 
 		}
 
+		decimal_fixed(const decimal_fixed& other) = default;
+		decimal_fixed& operator=(const decimal_fixed& other) = default;
+		decimal_fixed(decimal_fixed&& other) = default;
+		decimal_fixed& operator=(decimal_fixed&& other) = default;
+
 		double toDouble() const
 		{
 			return (double)value + (double)fractional / 1e9;
+		}
+
+		bool operator==(const decimal_fixed& other) const
+		{
+			return (value == other.value) && (fractional == other.fractional);
 		}
 	} __attribute__((packed,aligned(1)));
 
@@ -77,6 +88,13 @@ namespace goldmine
 		decimal_fixed value;
 		int32_t volume;
 	} __attribute__((packed));
+
+	inline bool operator==(const Tick& t1, const Tick& t2)
+	{
+		return (t1.packet_type == t2.packet_type) && (t1.timestamp == t2.timestamp) &&
+			(t1.useconds == t2.useconds) && (t1.datatype == t2.datatype) && (t1.value == t2.value) &&
+			(t1.volume == t2.volume);
+	}
 
 	struct Summary
 	{
