@@ -98,27 +98,76 @@ TEST_CASE("QuotesourceServer", "[core][quotesource][server]")
 
 		sendCommand(client, root);
 
-		sendCredits(client);
-
 		getControlResponse(client);
 
-		goldmine::Tick tick;
-		tick.timestamp = 12;
-		tick.useconds = 0;
-		tick.datatype = (uint32_t)goldmine::Datatype::Price;
-		tick.value = goldmine::decimal_fixed(42.0);
-		tick.volume = 40;
-		datasink->incomingTick("TEST", tick);
+		SECTION("One tick")
+		{
+			// We expect only one packet, so send only one credit
+			sendCredits(client);
 
-		std::array<char, 1024> tickBuffer;
-		std::string recvdTicker;
-		int dataPacketSize;
-		std::tie(recvdTicker, dataPacketSize) = readStreamPacket(client, tickBuffer.data(), tickBuffer.size());
+			// Pass tick to datasink
+			goldmine::Tick tick;
+			tick.timestamp = 12;
+			tick.useconds = 0;
+			tick.datatype = (uint32_t)goldmine::Datatype::Price;
+			tick.value = goldmine::decimal_fixed(42.0);
+			tick.volume = 40;
+			datasink->incomingTick("TEST", tick);
 
-		REQUIRE(recvdTicker == "TEST");
-		REQUIRE(dataPacketSize == sizeof(goldmine::Tick));
-		goldmine::Tick* recvedTick = reinterpret_cast<goldmine::Tick*>(tickBuffer.data());
-		REQUIRE(*recvedTick == tick);
+			// Read tick data into tickBuffer
+			std::array<char, 1024> tickBuffer;
+			std::string recvdTicker;
+			int dataPacketSize;
+			std::tie(recvdTicker, dataPacketSize) = readStreamPacket(client, tickBuffer.data(), tickBuffer.size());
+
+			REQUIRE(recvdTicker == "TEST");
+			REQUIRE(dataPacketSize == sizeof(goldmine::Tick));
+			goldmine::Tick* recvedTick = reinterpret_cast<goldmine::Tick*>(tickBuffer.data());
+			REQUIRE(*recvedTick == tick);
+		}
+
+		SECTION("Two ticks in different packets")
+		{
+			// Send two credits, because we expect 2 packets
+			sendCredits(client);
+			sendCredits(client);
+
+			// Pass one tick to datasink
+			goldmine::Tick tick1;
+			tick1.timestamp = 12;
+			tick1.useconds = 0;
+			tick1.datatype = (uint32_t)goldmine::Datatype::Price;
+			tick1.value = goldmine::decimal_fixed(42.0);
+			tick1.volume = 40;
+			datasink->incomingTick("TEST", tick1);
+
+			// Pass another tick to datasink
+			goldmine::Tick tick2;
+			tick2.timestamp = 14;
+			tick2.useconds = 0;
+			tick2.datatype = (uint32_t)goldmine::Datatype::Price;
+			tick2.value = goldmine::decimal_fixed(44.0);
+			tick2.volume = 41;
+			datasink->incomingTick("TEST", tick2);
+
+			std::array<char, 1024> tickBuffer;
+			std::string recvdTicker;
+			int dataPacketSize;
+
+			// Read first tick
+			std::tie(recvdTicker, dataPacketSize) = readStreamPacket(client, tickBuffer.data(), tickBuffer.size());
+			REQUIRE(recvdTicker == "TEST");
+			REQUIRE(dataPacketSize == sizeof(goldmine::Tick));
+			goldmine::Tick* recvedTick = reinterpret_cast<goldmine::Tick*>(tickBuffer.data());
+			REQUIRE(*recvedTick == tick1);
+
+			// Read second tick
+			std::tie(recvdTicker, dataPacketSize) = readStreamPacket(client, tickBuffer.data(), tickBuffer.size());
+			REQUIRE(recvdTicker == "TEST");
+			REQUIRE(dataPacketSize == sizeof(goldmine::Tick));
+			recvedTick = reinterpret_cast<goldmine::Tick*>(tickBuffer.data());
+			REQUIRE(*recvedTick == tick2);
+		}
 	}
 
 	server.stop();
