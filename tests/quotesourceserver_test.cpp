@@ -29,12 +29,25 @@ static void sendCommand(zmq::socket_t& socket, const Json::Value& root)
 static void sendCredits(zmq::socket_t& socket, int credits = 1)
 {
 	zmq::message_t msgDelimiter;
-
-	uint32_t messageType = (uint32_t)goldmine::MessageType::StreamCredit;
-	zmq::message_t msgRequest((void*)(&messageType), 4);
-
 	socket.send(msgDelimiter, ZMQ_SNDMORE);
-	socket.send(msgRequest);
+
+	if(credits == 1)
+	{
+		uint8_t messageType = (uint8_t)goldmine::MessageType::StreamCredit;
+		zmq::message_t msgRequest((void*)(&messageType), 1);
+		socket.send(msgRequest);
+	}
+	else
+	{
+		uint8_t data[8]; 
+		data[0] = (uint8_t)goldmine::MessageType::StreamCredit;
+		data[1] = (credits >> 0) & 0xff;
+		data[2] = (credits >> 8) & 0xff;
+		data[3] = (credits >> 16) & 0xff;
+		data[4] = (credits >> 24) & 0xff;
+		zmq::message_t msgRequest((void*)data, 5);
+		socket.send(msgRequest);
+	}
 }
 
 static Json::Value getControlResponse(zmq::socket_t& socket)
@@ -129,8 +142,19 @@ TEST_CASE("QuotesourceServer", "[core][quotesource][server]")
 		SECTION("Two ticks in different packets")
 		{
 			// Send two credits, because we expect 2 packets
-			sendCredits(client);
-			sendCredits(client);
+			SECTION("Send credits")
+			{
+				SECTION("Send credits via single-credit packet")
+				{
+					sendCredits(client);
+					sendCredits(client);
+				}
+
+				SECTION("Send credits via multi-credit packet")
+				{
+					sendCredits(client, 2);
+				}
+			}
 
 			// Pass one tick to datasink
 			goldmine::Tick tick1;

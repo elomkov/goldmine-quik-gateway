@@ -53,7 +53,7 @@ void QuotesourceServer::run()
 	{
 		try
 		{
-			int rc = zmq::poll(pollitems, 2, 1000);
+			int rc = zmq::poll(pollitems, 2, 100);
 			if(rc < 0)
 				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("zmq::poll error, returned " + std::to_string(rc)));
 
@@ -120,7 +120,14 @@ void QuotesourceServer::handleControlSocket()
 		if(!client)
 			BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: got credit from unsubscribed client"));
 
-		client->incrementCredits(1);
+		int credits = 1;
+		if(msgMessageType.size() > 1)
+		{
+			uint32_t* creditsPtr = (uint32_t*)((uint8_t*)msgMessageType.data() + 1);
+			credits = *creditsPtr;
+		}
+
+		client->incrementCredits(credits);
 	}
 }
 
