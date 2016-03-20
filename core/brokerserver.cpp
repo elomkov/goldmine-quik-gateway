@@ -5,6 +5,7 @@
 #include "brokerserver.h"
 #include <functional>
 #include "log.h"
+#include "exceptions.h"
 
 static std::string serializeOrderState(Order::State state)
 {
@@ -26,14 +27,12 @@ static std::string serializeOrderState(Order::State state)
 	return "unknown";
 }
 
-BrokerServer::BrokerServer(zmq::context_t& context, const std::string& controlEp, const Broker::Ptr& broker) :
+BrokerServer::BrokerServer(zmq::context_t& context, const std::string& controlEp) :
 	m_running(false),
 	m_context(context),
 	m_control(context, ZMQ_ROUTER),
-	m_controlEp(controlEp),
-	m_broker(broker)
+	m_controlEp(controlEp)
 {
-	m_broker->registerOrderCallback(std::bind(&BrokerServer::orderCallback, this, std::placeholders::_1));
 }
 
 BrokerServer::~BrokerServer()
@@ -51,6 +50,12 @@ void BrokerServer::stop()
 	m_thread.join();
 }
 
+void BrokerServer::addBroker(const Broker::Ptr& broker)
+{
+	broker->registerOrderCallback(std::bind(&BrokerServer::orderCallback, this, std::placeholders::_1));
+	m_brokers.push_back(broker);
+}
+
 void BrokerServer::run()
 {
 	m_running = true;
@@ -65,27 +70,31 @@ void BrokerServer::run()
 
 	while(m_running)
 	{
-		int rc = zmq::poll(pollitems, 1, 1000);
-		if(rc < 0)
-			throw std::runtime_error("BrokerServer: zmq::poll error, returned " + std::to_string(rc));
-
-		if(rc > 0)
+		try
 		{
-			if(pollitems[0].revents == ZMQ_POLLIN)
+			int rc = zmq::poll(pollitems, 1, 1000);
+			if(rc < 0)
+				BOOST_SCOPE_EXIT(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
+
+			if(rc > 0)
 			{
-				try
+				if(pollitems[0].revents == ZMQ_POLLIN)
 				{
 					handleControlSocket(m_control);
 				}
-				catch(const std::runtime_error& e)
+				else if(pollitems[1].revents == ZMQ_POLLIN)
 				{
-					LOG(WARNING) << "Exception when handling message from control socket: " << e.what();
+					handleSocketStateUpdate(m_control, orderStateSocket);
 				}
 			}
-			else if(pollitems[1].revents == ZMQ_POLLIN)
-			{
-				handleSocketStateUpdate(m_control, orderStateSocket);
-			}
+		}
+		catch(const GoldmineQuikGatewayException& e)
+		{
+			LOG(WARNING) << "Exception when handling message from control socket: " << e.what();
+		}
+		catch(const std::runtime_error& e)
+		{
+			LOG(WARNING) << "Exception when handling message from control socket: " << e.what();
 		}
 	}
 }
@@ -97,17 +106,17 @@ void BrokerServer::handleControlSocket(zmq::socket_t& control)
 	LOG(INFO) << "BrokerServer: incoming message";
 
 	if(!control.recv(&msgPeerId, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read peer id");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read peer id"));
 
 	uint8_t* peerIdData = reinterpret_cast<uint8_t*>(msgPeerId.data());
 	byte_array peerId(peerIdData, peerIdData + msgPeerId.size());
 
 	if(!control.recv(&msgDelimiter, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read delimiter");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read delimiter"));
 
 	zmq::message_t msgCommand;
 	if(!control.recv(&msgCommand, ZMQ_NOBLOCK))
-		throw std::runtime_error("Control: unable to read control packet");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to read control packet"));
 
 	Json::Value root;
 	Json::Reader reader;
@@ -115,7 +124,7 @@ void BrokerServer::handleControlSocket(zmq::socket_t& control)
 
 	const char* buffer = (const char*)msgCommand.data();
 	if(!reader.parse(buffer, buffer + msgCommand.size(), root))
-		throw std::runtime_error("Control: unable to parse incoming json");
+		BOOST_THROW_EXCEPTION(ProtocolError() << errinfo_str("Control: unable to parse incoming json"));
 
 	std::string json(buffer, buffer + msgCommand.size());
 
@@ -131,6 +140,10 @@ void BrokerServer::handleCommand(const Json::Value& root, const byte_array& peer
 		auto order = root["order"];
 		int id = order["id"].asInt();
 		auto account = order["account"].asString();
+		auto broker = findBrokerForAccount(account);
+		if(!broker)
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Unable to find broker for account: " + account));
+
 		auto security = order["security"].asString();
 		auto type = order["type"].asString();
 		auto price = order["price"].asDouble();
@@ -143,7 +156,7 @@ void BrokerServer::handleCommand(const Json::Value& root, const byte_array& peer
 		else if(operation == "sell")
 			op = Order::Operation::Sell;
 		else
-			throw std::runtime_error("Invalid operation specified: " + operation);
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Invalid operation specified: " + operation));
 
 		Order::OrderType t;
 		if(type == "limit")
@@ -151,7 +164,7 @@ void BrokerServer::handleCommand(const Json::Value& root, const byte_array& peer
 		else if(type == "market")
 			t = Order::OrderType::Market;
 		else
-			throw std::runtime_error("Invalid order type specified: " + type);
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Invalid order type specified: " + type));
 
 		auto brokerOrder = std::make_shared<Order>(id, account, security, price, amount, op, t);
 
@@ -171,7 +184,7 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 
 	auto it = m_orderPeers.find(id);
 	if(it == m_orderPeers.end())
-		throw std::runtime_error("Order state changed, but peer is unknown");
+		BOOST_THROW_EXCEPTION(LogicError() << errinfo_str("Order state changed, but peer is unknown"));
 
 	auto peerId = it->second;
 
@@ -213,3 +226,15 @@ void BrokerServer::orderCallback(const Order::Ptr& order)
 
 	m_orderSocket->send(msg, 0);
 }
+
+Broker::Ptr BrokerServer::findBrokerForAccount(const std::string& account)
+{
+	for(const auto& broker : m_brokers)
+	{
+		auto accounts = broker->accounts();
+		if(std::find(accounts.begin(), accounts.end(), account) != accounts.end())
+			return broker;
+	}
+	return Broker::Ptr();
+}
+

@@ -14,7 +14,15 @@ struct GoldmineQuikGatewayException : virtual public boost::exception, virtual p
     }
 };
 
+struct LogicError : public GoldmineQuikGatewayException
+{
+};
+
 struct ProtocolError : public GoldmineQuikGatewayException
+{
+};
+
+struct ParameterError : public GoldmineQuikGatewayException
 {
 };
 

@@ -14,11 +14,13 @@
 class BrokerServer
 {
 public:
-	BrokerServer(zmq::context_t& context, const std::string& controlEp, const Broker::Ptr& broker);
+	BrokerServer(zmq::context_t& context, const std::string& controlEp);
 	virtual ~BrokerServer();
 
 	void start();
 	void stop();
+
+	void addBroker(const Broker::Ptr& broker);
 
 private:
 	void run();
@@ -28,13 +30,15 @@ private:
 	void handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t& stateSocket);
 	void orderCallback(const Order::Ptr& order);
 
+	Broker::Ptr findBrokerForAccount(const std::string& account);
+
 private:
 	bool m_running;
 	boost::thread m_thread;
 	zmq::context_t& m_context;
 	zmq::socket_t m_control;
 	std::string m_controlEp;
-	Broker::Ptr m_broker;
+	std::vector<Broker::Ptr> m_brokers;
 	std::map<int, byte_array> m_orderPeers;
 	std::unique_ptr<zmq::socket_t> m_orderSocket;
 };

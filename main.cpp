@@ -158,7 +158,8 @@ int main(int argc, char** argv)
 	auto quoteTable = std::make_shared<QuoteTable>();
 	evloop.datasink()->setQuoteTable(quoteTable);
 	auto broker = std::make_shared<VirtualBroker>(100000, quoteTable);
-	BrokerServer brokerServer(ctx, "tcp://*:5520", broker);
+	BrokerServer brokerServer(ctx, "tcp://*:5520");
+	brokerServer.addBroker(broker);
 
 	brokerServer.start();
 
