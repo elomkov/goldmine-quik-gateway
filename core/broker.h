@@ -10,6 +10,8 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include "goldmine/data.h"
 
 class Order
 {
@@ -72,6 +74,19 @@ private:
 	State m_state;
 };
 
+struct Trade
+{
+	Trade() : orderId(0), price(0), amount(0), operation(Order::Operation::Buy) {}
+	int orderId;
+	goldmine::decimal_fixed price;
+	int amount;
+	Order::Operation operation;
+	std::string account;
+	std::string ticker;
+	uint64_t timestamp;
+	uint32_t useconds;
+};
+
 struct Position
 {
 	std::string security;
@@ -83,6 +98,7 @@ class Broker
 public:
 	typedef std::shared_ptr<Broker> Ptr;
 	typedef std::function<void(Order::Ptr)> OrderCallback;
+	typedef std::function<void(const Trade&)> TradeCallback;
 
 	virtual ~Broker() {}
 
@@ -91,6 +107,8 @@ public:
 
 	virtual void registerOrderCallback(const OrderCallback& callback) = 0;
 	virtual void unregisterOrderCallback(const OrderCallback& callback) = 0;
+
+	virtual void registerTradeCallback(const TradeCallback& callback) = 0;
 
 	virtual Order::Ptr order(int localId) = 0;
 

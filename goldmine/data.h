@@ -76,6 +76,21 @@ namespace goldmine
 		{
 			return (value == other.value) && (fractional == other.fractional);
 		}
+
+		bool operator<(const decimal_fixed& other) const
+		{
+			if(value < other.value)
+				return true;
+			else if(value == other.value)
+				return fractional < other.fractional;
+			else
+				return false;
+		}
+
+		bool operator<=(const decimal_fixed& other) const
+		{
+			return (*this < other) || (*this == other);
+		}
 	} __attribute__((packed,aligned(1)));
 
 	struct Tick

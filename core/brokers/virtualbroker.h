@@ -20,6 +20,8 @@ public:
 	virtual void registerOrderCallback(const OrderCallback& callback);
 	virtual void unregisterOrderCallback(const OrderCallback& callback);
 
+	virtual void registerTradeCallback(const TradeCallback& callback);
+
 	virtual Order::Ptr order(int localId);
 
 	virtual std::list<std::string> accounts();
@@ -28,10 +30,14 @@ public:
 
 private:
 	void orderStateUpdated(const Order::Ptr& order);
+	void emitTrade(const Trade& trade);
+	void executeBuyAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds);
+	void executeSellAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds);
 
 private:
 	std::list<Order::Ptr> m_pendingOrders;
 	std::list<OrderCallback> m_orderCallbacks;
+	std::list<TradeCallback> m_tradeCallbacks;
 	std::map<std::string, int> m_portfolio;
 	double m_cash;
 	QuoteTable::Ptr m_table;

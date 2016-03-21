@@ -21,8 +21,10 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 	m_pendingOrders.push_back(order);
 	if(order->type() == Order::OrderType::Market)
 	{
-		auto bid = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid).value.toDouble();
-		auto offer = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer).value.toDouble();
+		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid); 
+		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer); 
+		auto bid = bidTick.value.toDouble();
+		auto offer = offerTick.value.toDouble();
 
 		LOG(INFO) << bid << "/" << offer;
 
@@ -44,9 +46,7 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 				else
 				{
 					LOG(INFO) << "Order OK";
-					order->updateState(Order::State::Executed);
-					m_portfolio[order->security()] += order->amount();
-					m_cash -= volume;
+					executeBuyAt(order, offerTick.value, offerTick.timestamp, offerTick.useconds);
 				}
 			}
 			orderStateUpdated(order);
@@ -60,13 +60,42 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 			}
 			else
 			{
-				m_cash += bid * order->amount();
-				m_portfolio[order->security()] -= order->amount();
-
-				order->updateState(Order::State::Executed);
+				executeSellAt(order, bidTick.value, bidTick.timestamp, bidTick.useconds);
 			}
 			orderStateUpdated(order);
 		}
+	}
+	else if(order->type() == Order::OrderType::Limit)
+	{
+		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid); 
+		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer); 
+		auto bid = bidTick.value.toDouble();
+		auto offer = offerTick.value.toDouble();
+
+		LOG(INFO) << bid << "/" << offer;
+
+		if(order->operation() == Order::Operation::Buy)
+		{
+			if(offerTick.value < order->price())
+			{
+				double volume = offer * order->amount();
+				if(m_cash < volume)
+				{
+					LOG(INFO) << "Not enough cash";
+					order->updateState(Order::State::Rejected);
+				}
+				else
+				{
+					LOG(INFO) << "Order OK";
+					executeBuyAt(order, offerTick.value, offerTick.timestamp, offerTick.useconds);
+				}
+			}
+		}
+		else if(order->operation() == Order::Operation::Sell)
+		{
+			executeSellAt(order, bidTick.value, bidTick.timestamp, bidTick.useconds);
+		}
+		orderStateUpdated(order);
 	}
 	else
 	{
@@ -87,6 +116,11 @@ void VirtualBroker::registerOrderCallback(const OrderCallback& callback)
 
 void VirtualBroker::unregisterOrderCallback(const OrderCallback& callback)
 {
+}
+
+void VirtualBroker::registerTradeCallback(const TradeCallback& callback)
+{
+	m_tradeCallbacks.push_back(callback);
 }
 
 Order::Ptr VirtualBroker::order(int localId)
@@ -111,6 +145,52 @@ void VirtualBroker::orderStateUpdated(const Order::Ptr& order)
 	{
 		c(order);
 	}
+}
+
+void VirtualBroker::emitTrade(const Trade& trade)
+{
+	for(const auto& c : m_tradeCallbacks)
+	{
+		c(trade);
+	}
+}
+
+void VirtualBroker::executeBuyAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
+{
+	double volume = price.toDouble() * order->amount();
+	order->updateState(Order::State::Executed);
+	m_portfolio[order->security()] += order->amount();
+	m_cash -= volume;
+
+	Trade trade;
+	trade.orderId = order->clientAssignedId();
+	trade.account = order->account();
+	trade.price = price;
+	trade.amount = order->amount();
+	trade.operation = order->operation();
+	trade.ticker = order->security();
+	trade.timestamp = timestamp;
+	trade.useconds = useconds;
+	emitTrade(trade);
+}
+
+void VirtualBroker::executeSellAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
+{
+	m_cash += price.toDouble() * order->amount();
+	m_portfolio[order->security()] -= order->amount();
+
+	order->updateState(Order::State::Executed);
+
+	Trade trade;
+	trade.orderId = order->clientAssignedId();
+	trade.account = order->account();
+	trade.price = price;
+	trade.amount = order->amount();
+	trade.operation = order->operation();
+	trade.ticker = order->security();
+	trade.timestamp = timestamp;
+	trade.useconds = useconds;
+	emitTrade(trade);
 }
 
 std::list<Position> VirtualBroker::positions()
