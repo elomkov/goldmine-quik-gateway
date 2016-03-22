@@ -91,6 +91,16 @@ namespace goldmine
 		{
 			return (*this < other) || (*this == other);
 		}
+
+		bool operator>=(const decimal_fixed& other) const
+		{
+			return !(*this < other);
+		}
+		
+		bool operator>(const decimal_fixed& other) const
+		{
+			return !(*this <= other);
+		}
 	} __attribute__((packed,aligned(1)));
 
 	struct Tick

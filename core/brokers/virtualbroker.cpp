@@ -5,9 +5,12 @@
 #include "virtualbroker.h"
 #include "log.h"
 
+namespace sp = std::placeholders;
+
 VirtualBroker::VirtualBroker(double startCash, const QuoteTable::Ptr& table) : m_cash(startCash),
 	m_table(table)
 {
+	m_table->setTickCallback(std::bind(&VirtualBroker::incomingTick, this, sp::_1, sp::_2));
 }
 
 VirtualBroker::~VirtualBroker()
@@ -16,13 +19,14 @@ VirtualBroker::~VirtualBroker()
 
 void VirtualBroker::submitOrder(const Order::Ptr& order)
 {
+	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
 	LOG(INFO) << "VirtualBroker: submitted order: " << order->stringRepresentation();
 
 	m_pendingOrders.push_back(order);
 	if(order->type() == Order::OrderType::Market)
 	{
-		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid); 
-		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer); 
+		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid);
+		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer);
 		auto bid = bidTick.value.toDouble();
 		auto offer = offerTick.value.toDouble();
 
@@ -67,8 +71,8 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 	}
 	else if(order->type() == Order::OrderType::Limit)
 	{
-		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid); 
-		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer); 
+		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid);
+		auto offerTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestOffer);
 		auto bid = bidTick.value.toDouble();
 		auto offer = offerTick.value.toDouble();
 
@@ -76,7 +80,7 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 
 		if(order->operation() == Order::Operation::Buy)
 		{
-			if(offerTick.value < order->price())
+			if((offerTick.value <= order->price()) && (offer != 0))
 			{
 				double volume = offer * order->amount();
 				if(m_cash < volume)
@@ -90,10 +94,22 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 					executeBuyAt(order, offerTick.value, offerTick.timestamp, offerTick.useconds);
 				}
 			}
+			else
+			{
+				addPendingOrder(order);
+			}
 		}
 		else if(order->operation() == Order::Operation::Sell)
 		{
-			executeSellAt(order, bidTick.value, bidTick.timestamp, bidTick.useconds);
+			if((bid != 0) && (bidTick.value >= order->price()))
+			{
+				LOG(INFO) << "Order OK";
+				executeSellAt(order, bidTick.value, bidTick.timestamp, bidTick.useconds);
+			}
+			else
+			{
+				addPendingOrder(order);
+			}
 		}
 		orderStateUpdated(order);
 	}
@@ -111,6 +127,7 @@ void VirtualBroker::cancelOrder(const Order::Ptr& order)
 
 void VirtualBroker::registerOrderCallback(const OrderCallback& callback)
 {
+	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
 	m_orderCallbacks.push_back(callback);
 }
 
@@ -120,6 +137,7 @@ void VirtualBroker::unregisterOrderCallback(const OrderCallback& callback)
 
 void VirtualBroker::registerTradeCallback(const TradeCallback& callback)
 {
+	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
 	m_tradeCallbacks.push_back(callback);
 }
 
@@ -137,6 +155,52 @@ std::list<std::string> VirtualBroker::accounts()
 	std::list<std::string> result;
 	result.push_back("demo");
 	return result;
+}
+
+void VirtualBroker::addPendingOrder(const Order::Ptr& order)
+{
+	m_pendingOrders.push_back(order);
+	m_table->enableTicker(order->security());
+}
+
+void VirtualBroker::unsubscribeFromTickerIfNeeded(const std::string& ticker)
+{
+	auto it = std::find_if(m_pendingOrders.begin(), m_pendingOrders.end(), [&](const Order::Ptr& order) { return order->security() == ticker; } );
+	if(it == m_pendingOrders.end())
+	{
+		m_table->disableTicker(ticker);
+	}
+}
+
+void VirtualBroker::incomingTick(const std::string& ticker, const goldmine::Tick& tick)
+{
+	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
+	LOG(DEBUG) << "VirtualBroker::incomingTick: " << ticker;
+	auto it = m_pendingOrders.begin();
+	while(it != m_pendingOrders.end())
+	{
+		auto next = it;
+		++next;
+
+		auto order = *it;
+		if(order->security() == ticker)
+		{
+			if((order->operation() == Order::Operation::Buy) && (tick.value <= order->price()))
+			{
+				executeBuyAt(order, order->price(), tick.timestamp, tick.useconds);
+				m_pendingOrders.erase(it);
+				unsubscribeFromTickerIfNeeded(order->security());
+			}
+			else if((order->operation() == Order::Operation::Sell) && (tick.value >= order->price()))
+			{
+				executeSellAt(order, order->price(), tick.timestamp, tick.useconds);
+				m_pendingOrders.erase(it);
+				unsubscribeFromTickerIfNeeded(order->security());
+			}
+		}
+		
+		it = next;
+	}
 }
 
 void VirtualBroker::orderStateUpdated(const Order::Ptr& order)
@@ -178,7 +242,6 @@ void VirtualBroker::executeSellAt(const Order::Ptr& order, const goldmine::decim
 {
 	m_cash += price.toDouble() * order->amount();
 	m_portfolio[order->security()] -= order->amount();
-
 	order->updateState(Order::State::Executed);
 
 	Trade trade;
@@ -196,10 +259,10 @@ void VirtualBroker::executeSellAt(const Order::Ptr& order, const goldmine::decim
 std::list<Position> VirtualBroker::positions()
 {
 	std::list<Position> result;
-
 	for(auto it = m_portfolio.begin(); it != m_portfolio.end(); ++it)
 	{
 		result.push_back(Position {it->first, it->second} );
 	}
 	return result;
 }
+

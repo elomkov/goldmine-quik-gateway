@@ -94,7 +94,7 @@ TEST_CASE("VirtualBroker", "[core][broker]")
 		tick.datatype = (int)goldmine::Datatype::BestOffer;
 		tick.timestamp = 41;
 		tick.useconds = 5555;
-		tick.value = goldmine::decimal_fixed(100);
+		tick.value = goldmine::decimal_fixed(101);
 		tick.volume = 0;
 		quoteTable->updateQuote("TEST", tick);
 
@@ -103,6 +103,8 @@ TEST_CASE("VirtualBroker", "[core][broker]")
 		REQUIRE(gs_lastOrder != nullptr);
 		REQUIRE(gs_lastOrder->state() == Order::State::Executed);
 
+		// If offer was already available, order is filled at offer's price, 
+		// even though order's price is higher
 		REQUIRE(gs_lastTrade.price == tick.value);
 		REQUIRE(gs_lastTrade.amount == 1);
 		REQUIRE(gs_lastTrade.operation == Order::Operation::Buy);
@@ -128,6 +130,56 @@ TEST_CASE("VirtualBroker", "[core][broker]")
 		REQUIRE(gs_lastOrder->state() == Order::State::Executed);
 
 		REQUIRE(gs_lastTrade.price == tick.value);
+		REQUIRE(gs_lastTrade.amount == 1);
+		REQUIRE(gs_lastTrade.operation == Order::Operation::Sell);
+		REQUIRE(gs_lastTrade.account == "demo");
+		REQUIRE(gs_lastTrade.ticker == "TEST");
+		REQUIRE(gs_lastTrade.timestamp == tick.timestamp);
+		REQUIRE(gs_lastTrade.useconds == tick.useconds);
+	}
+
+	SECTION("Simple limit buy - incoming tick")
+	{
+		broker.submitOrder(std::make_shared<Order>(1, "demo", "TEST", 110, 1, Order::Operation::Buy, Order::OrderType::Limit));
+
+		goldmine::Tick tick;
+		tick.datatype = (int)goldmine::Datatype::BestOffer;
+		tick.timestamp = 41;
+		tick.useconds = 5555;
+		tick.value = goldmine::decimal_fixed(100);
+		tick.volume = 0;
+		quoteTable->updateQuote("TEST", tick);
+
+		REQUIRE(gs_lastOrder != nullptr);
+		REQUIRE(gs_lastOrder->state() == Order::State::Executed);
+
+		// Limit order executed at order price
+		REQUIRE(gs_lastTrade.price == goldmine::decimal_fixed(110));
+		REQUIRE(gs_lastTrade.amount == 1);
+		REQUIRE(gs_lastTrade.operation == Order::Operation::Buy);
+		REQUIRE(gs_lastTrade.account == "demo");
+		REQUIRE(gs_lastTrade.ticker == "TEST");
+		REQUIRE(gs_lastTrade.timestamp == tick.timestamp);
+		REQUIRE(gs_lastTrade.useconds == tick.useconds);
+	}
+
+	SECTION("Simple limit sell - incoming tick")
+	{
+		broker.submitOrder(std::make_shared<Order>(1, "demo", "TEST", 90, 1, Order::Operation::Sell, Order::OrderType::Limit));
+
+		goldmine::Tick tick;
+		tick.datatype = (int)goldmine::Datatype::BestBid;
+		tick.timestamp = 41;
+		tick.useconds = 5555;
+		tick.value = goldmine::decimal_fixed(100);
+		tick.volume = 0;
+		quoteTable->updateQuote("TEST", tick);
+
+		REQUIRE(gs_lastOrder != nullptr);
+		REQUIRE(gs_lastOrder->state() == Order::State::Executed);
+
+		// Limit order executed at order price
+		REQUIRE(gs_lastTrade.price == goldmine::decimal_fixed(90));
 		REQUIRE(gs_lastTrade.amount == 1);
 		REQUIRE(gs_lastTrade.operation == Order::Operation::Sell);
 		REQUIRE(gs_lastTrade.account == "demo");
