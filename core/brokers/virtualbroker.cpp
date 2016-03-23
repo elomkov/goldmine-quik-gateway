@@ -201,7 +201,7 @@ void VirtualBroker::incomingTick(const std::string& ticker, const goldmine::Tick
 				unsubscribeFromTickerIfNeeded(order->security());
 			}
 		}
-		
+
 		it = next;
 	}
 }
@@ -224,7 +224,7 @@ void VirtualBroker::emitTrade(const Trade& trade)
 
 void VirtualBroker::executeBuyAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
 {
-	LOG(INFO) << "VB: executeBuyAt: " << price.toDouble();
+	LOG(DEBUG) << "VB: executeBuyAt: " << price.toDouble();
 	double volume = price.toDouble() * order->amount();
 	order->updateState(Order::State::Executed);
 	m_portfolio[order->security()] += order->amount();
@@ -244,7 +244,7 @@ void VirtualBroker::executeBuyAt(const Order::Ptr& order, const goldmine::decima
 
 void VirtualBroker::executeSellAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
 {
-	LOG(INFO) << "VB: executeSellAt: " << price.toDouble();
+	LOG(DEBUG) << "VB: executeSellAt: " << price.toDouble();
 	m_cash += price.toDouble() * order->amount();
 	m_portfolio[order->security()] -= order->amount();
 	order->updateState(Order::State::Executed);
