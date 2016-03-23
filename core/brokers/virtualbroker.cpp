@@ -22,7 +22,6 @@ void VirtualBroker::submitOrder(const Order::Ptr& order)
 	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
 	LOG(INFO) << "VirtualBroker: submitted order: " << order->stringRepresentation();
 
-	m_pendingOrders.push_back(order);
 	if(order->type() == Order::OrderType::Market)
 	{
 		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid);
@@ -160,7 +159,7 @@ std::list<std::string> VirtualBroker::accounts()
 
 void VirtualBroker::addPendingOrder(const Order::Ptr& order)
 {
-	LOG(INFO) << "Added pending order: " << order->stringRepresentation();
+	order->updateState(Order::State::Submitted);
 	m_pendingOrders.push_back(order);
 	m_table->enableTicker(order->security());
 }
