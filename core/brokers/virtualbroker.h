@@ -10,11 +10,17 @@
 
 #include <boost/thread.hpp>
 
+#include <ostream>
+#include <istream>
+
 class VirtualBroker : public Broker
 {
 public:
 	VirtualBroker(double startCash, const QuoteTable::Ptr& table);
 	virtual ~VirtualBroker();
+
+	void save(std::ostream& stream);
+	void load(std::istream& stream);
 
 	virtual void submitOrder(const Order::Ptr& order);
 	virtual void cancelOrder(const Order::Ptr& order);
