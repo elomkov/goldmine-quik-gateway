@@ -72,7 +72,7 @@ void BrokerServer::run()
 	{
 		try
 		{
-			int rc = zmq::poll(pollitems, 1, 1000);
+			int rc = zmq::poll(pollitems, 2, 100);
 			if(rc < 0)
 				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
 

@@ -185,6 +185,11 @@ void VirtualBroker::incomingTick(const std::string& ticker, const goldmine::Tick
 		++next;
 
 		auto order = *it;
+		LOG(DEBUG) << "Order: " << order->stringRepresentation();
+		if(next != m_pendingOrders.end())
+		{
+			LOG(DEBUG) << "Next Order: " << (*next)->stringRepresentation();
+		}
 		if(order->security() == ticker)
 		{
 			if((order->operation() == Order::Operation::Buy) && (tick.value <= order->price()) &&
