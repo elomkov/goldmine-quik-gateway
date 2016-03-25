@@ -72,17 +72,18 @@ void BrokerServer::run()
 	{
 		try
 		{
-			int rc = zmq::poll(pollitems, 1, 1000);
+			int rc = zmq::poll(pollitems, 2, 1000);
 			if(rc < 0)
 				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
 
 			if(rc > 0)
 			{
+				LOG(INFO) << "R" << rc << "; " << pollitems[0].revents << "/" << pollitems[1].revents;
 				if(pollitems[0].revents == ZMQ_POLLIN)
 				{
 					handleControlSocket(m_control);
 				}
-				else if(pollitems[1].revents == ZMQ_POLLIN)
+				if(pollitems[1].revents == ZMQ_POLLIN)
 				{
 					handleSocketStateUpdate(m_control, orderStateSocket);
 				}
@@ -198,6 +199,8 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 	if(!order)
 		BOOST_THROW_EXCEPTION(LogicError() << errinfo_str("Received order state update, but can't find corresponding broker"));
 
+	LOG(INFO) << "BrokerServer::stateUpdate: " << order->stringRepresentation();
+
 	zmq::message_t msgPeerId(peerId.size());
 	memcpy(msgPeerId.data(), peerId.data(), peerId.size());
 
@@ -218,14 +221,17 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 	control.send(msgPeerId, ZMQ_SNDMORE);
 	control.send(msgDelimiter, ZMQ_SNDMORE);
 	control.send(msgJson, 0);
+	LOG(INFO) << "Order state: " << json;
 }
 
 void BrokerServer::orderCallback(const Order::Ptr& order)
 {
+	LOG(INFO) << "BrokerServer::orderCallback: " << order->stringRepresentation();
 	if(!m_orderSocket)
 	{
 		m_orderSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_PUSH);
 		m_orderSocket->connect("inproc://order-state-socket");
+		LOG(INFO) << "Connecting to socket";
 	}
 
 	int orderId = order->localId();

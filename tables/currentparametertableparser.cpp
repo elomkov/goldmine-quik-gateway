@@ -128,8 +128,12 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 	long volume = 1;
 	try
 	{
-		auto cumulativeVolume = boost::get<double>(table->get(row, m_schema[Volume]));\
+		auto cumulativeVolume = boost::get<double>(table->get(row, m_schema[Volume]));
 		long lastVolume = m_volumes[code];
+		if(cumulativeVolume < lastVolume)
+		{
+			lastVolume = 0;
+		}
 		if(lastVolume == 0)
 		{
 			lastVolume = cumulativeVolume;
@@ -206,10 +210,13 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 			// If we don't have best bid/ask data we should do nothing
 		}
 
-		tick.datatype = (int)goldmine::Datatype::Price;
-		tick.value = lastPrice;
-		tick.volume = delta >= 0 ? volume : -volume;
-		m_datasink->incomingTick(code, tick);
+		if(std::abs(volume) > 0)
+		{
+			tick.datatype = (int)goldmine::Datatype::Price;
+			tick.value = lastPrice;
+			tick.volume = delta >= 0 ? volume : -volume;
+			m_datasink->incomingTick(code, tick);
+		}
 	}
 	catch(const boost::bad_get& e)
 	{

@@ -52,5 +52,35 @@ std::string Order::stringRepresentation() const
 	if(m_type == Order::OrderType::Limit)
 		ss << " at " << m_price;
 
+	ss << " (";
+	switch(m_state)
+	{
+		case State::Submitted:
+			ss << "submitted";
+			break;
+
+		case State::Cancelled:
+			ss << "cancelled";
+			break;
+
+		case State::Rejected:
+			ss << "rejected";
+			break;
+
+		case State::Executed:
+			ss << "executed";
+			break;
+
+		case State::PartiallyExecuted:
+			ss << "partially executed";
+			break;
+
+		case State::Unsubmitted:
+			ss << "unsubmitted";
+			break;
+	}
+
+	ss << ")";
+
 	return ss.str();
 }

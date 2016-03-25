@@ -49,6 +49,7 @@ private:
 
 private:
 	std::list<Order::Ptr> m_pendingOrders;
+	std::list<Order::Ptr> m_allOrders;
 	std::list<OrderCallback> m_orderCallbacks;
 	std::list<TradeCallback> m_tradeCallbacks;
 	std::map<std::string, int> m_portfolio;
