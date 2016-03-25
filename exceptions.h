@@ -26,6 +26,10 @@ struct ParameterError : public GoldmineQuikGatewayException
 {
 };
 
+struct FormatError : public GoldmineQuikGatewayException
+{
+};
+
 struct ZmqError : public GoldmineQuikGatewayException
 {
 };

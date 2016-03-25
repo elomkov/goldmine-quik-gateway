@@ -17,12 +17,42 @@ VirtualBroker::~VirtualBroker()
 {
 }
 
+void VirtualBroker::save(std::ostream& stream)
+{
+	stream << "SUR;" << m_cash << ";" << std::endl;
+	for(const auto& position : m_portfolio)
+	{
+		stream << position.first << ";" << position.second << ";" << std::endl;
+	}
+}
+
+void VirtualBroker::load(std::istream& stream)
+{
+	std::string line;
+	while(std::getline(stream, line))
+	{
+		auto firstSemicolon = line.find(';');
+		if(firstSemicolon == std::string::npos)
+			continue;
+		auto ticker = line.substr(0, firstSemicolon);
+		auto position = line.substr(firstSemicolon + 1, line.size() - firstSemicolon - 2);
+
+		if(ticker == "SUR")
+		{
+			m_cash = std::atof(position.c_str());
+		}
+		else
+		{
+			m_portfolio[ticker] = std::atoi(position.c_str());
+		}
+	}
+}
+
 void VirtualBroker::submitOrder(const Order::Ptr& order)
 {
 	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
 	LOG(INFO) << "VirtualBroker: submitted order: " << order->stringRepresentation();
 
-	m_pendingOrders.push_back(order);
 	if(order->type() == Order::OrderType::Market)
 	{
 		auto bidTick = m_table->lastQuote(order->security(), goldmine::Datatype::BestBid);
@@ -160,7 +190,7 @@ std::list<std::string> VirtualBroker::accounts()
 
 void VirtualBroker::addPendingOrder(const Order::Ptr& order)
 {
-	LOG(INFO) << "Added pending order: " << order->stringRepresentation();
+	order->updateState(Order::State::Submitted);
 	m_pendingOrders.push_back(order);
 	m_table->enableTicker(order->security());
 }
@@ -207,7 +237,7 @@ void VirtualBroker::incomingTick(const std::string& ticker, const goldmine::Tick
 				unsubscribeFromTickerIfNeeded(order->security());
 			}
 		}
-		
+
 		it = next;
 	}
 }
@@ -230,7 +260,7 @@ void VirtualBroker::emitTrade(const Trade& trade)
 
 void VirtualBroker::executeBuyAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
 {
-	LOG(INFO) << "VB: executeBuyAt: " << price.toDouble();
+	LOG(DEBUG) << "VB: executeBuyAt: " << price.toDouble();
 	double volume = price.toDouble() * order->amount();
 	order->updateState(Order::State::Executed);
 	m_portfolio[order->security()] += order->amount();
@@ -250,7 +280,7 @@ void VirtualBroker::executeBuyAt(const Order::Ptr& order, const goldmine::decima
 
 void VirtualBroker::executeSellAt(const Order::Ptr& order, const goldmine::decimal_fixed& price, uint64_t timestamp, uint32_t useconds)
 {
-	LOG(INFO) << "VB: executeSellAt: " << price.toDouble();
+	LOG(DEBUG) << "VB: executeSellAt: " << price.toDouble();
 	m_cash += price.toDouble() * order->amount();
 	m_portfolio[order->security()] -= order->amount();
 	order->updateState(Order::State::Executed);

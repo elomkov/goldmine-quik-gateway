@@ -17,6 +17,8 @@
 #include "core/brokers/virtualbroker.h"
 #include "optionparser/optionparser.h"
 
+#include <fstream>
+
 struct Arg: public option::Arg
 {
 	static void printError(const char* msg1, const option::Option& opt, const char* msg2)
@@ -158,6 +160,13 @@ int main(int argc, char** argv)
 	auto quoteTable = std::make_shared<QuoteTable>();
 	evloop.datasink()->setQuoteTable(quoteTable);
 	auto broker = std::make_shared<VirtualBroker>(100000, quoteTable);
+
+	{
+		std::ifstream vbrokerState("vbroker.state", std::ios_base::in);
+		if(vbrokerState.is_open())
+			broker->load(vbrokerState);
+	}
+
 	BrokerServer brokerServer(ctx, "tcp://*:5520");
 	brokerServer.addBroker(broker);
 
@@ -167,5 +176,15 @@ int main(int argc, char** argv)
 	wnd.show(argc, argv);
 	auto rc = Fl::run();
 	evloop.stop();
+	{
+		std::ofstream vbrokerState("vbroker.state", std::ios_base::out | std::ios_base::trunc);
+		if(vbrokerState.is_open())
+			broker->save(vbrokerState);
+		else
+		{
+			LOG(WARNING) << "Unable to save state";
+		}
+
+	}
 }
 
