@@ -3,6 +3,7 @@
  */
 
 #include <core/quotetable.h>
+#include "log.h"
 
 QuoteTable::QuoteTable()
 {

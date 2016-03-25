@@ -72,13 +72,12 @@ void BrokerServer::run()
 	{
 		try
 		{
-			int rc = zmq::poll(pollitems, 2, 1000);
+			int rc = zmq::poll(pollitems, 2, 100);
 			if(rc < 0)
 				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
 
 			if(rc > 0)
 			{
-				LOG(INFO) << "R" << rc << "; " << pollitems[0].revents << "/" << pollitems[1].revents;
 				if(pollitems[0].revents == ZMQ_POLLIN)
 				{
 					handleControlSocket(m_control);
