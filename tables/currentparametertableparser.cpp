@@ -137,6 +137,7 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 		if(lastVolume == 0)
 		{
 			lastVolume = cumulativeVolume;
+			volume = 0;
 		}
 		else
 		{
@@ -146,7 +147,7 @@ void CurrentParameterTableParser::parseRow(int row, const XlTable::Ptr& table)
 	}
 	catch(const boost::bad_get& e)
 	{
-		// If we can't find volume column, we'll just work in tick volume mode
+		volume = 0;
 	}
 
 	auto currentTime = m_timesource->preciseTimestamp();
