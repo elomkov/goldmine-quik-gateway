@@ -62,17 +62,22 @@ void BrokerServer::run()
 	LOG(INFO) << "Broker server started";
 	m_control.bind(m_controlEp.c_str());
 
+	zmq::socket_t tradesSocket(m_context, ZMQ_PULL);
+	tradesSocket.bind("inproc://trades-socket");
+
 	zmq::socket_t orderStateSocket(m_context, ZMQ_PULL);
 	orderStateSocket.bind("inproc://order-state-socket");
 
 	zmq_pollitem_t pollitems[] = { { (void*)m_control, 0, ZMQ_POLLIN, 0 },
-			{ (void*)orderStateSocket, 0, ZMQ_POLLIN, 0 } };
+			{ (void*)orderStateSocket, 0, ZMQ_POLLIN, 0 },
+			{ (void*)tradesSocket, 0, ZMQ_POLLIN, 0 }
+	};
 
 	while(m_running)
 	{
 		try
 		{
-			int rc = zmq::poll(pollitems, 2, 100);
+			int rc = zmq::poll(pollitems, 3, 100);
 			if(rc < 0)
 				BOOST_THROW_EXCEPTION(ZmqError() << errinfo_str("BrokerServer: zmq::poll error, returned " + std::to_string(rc)));
 
@@ -85,6 +90,10 @@ void BrokerServer::run()
 				if(pollitems[1].revents == ZMQ_POLLIN)
 				{
 					handleSocketStateUpdate(m_control, orderStateSocket);
+				}
+				if(pollitems[2].revents == ZMQ_POLLIN)
+				{
+					handleSocketTrades(m_control, tradesSocket);
 				}
 			}
 		}
@@ -223,6 +232,61 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 	LOG(INFO) << "Order state: " << json;
 }
 
+void BrokerServer::handleSocketTrades(zmq::socket_t& control, zmq::socket_t& tradesSocket)
+{
+	zmq::message_t msg;
+
+	tradesSocket.recv(&msg, ZMQ_NOBLOCK);
+
+	Trade trade;
+	memcpy((void*)&trade, msg.data(), sizeof(trade));
+
+	auto it = m_orderPeers.find(trade.orderId);
+	if(it == m_orderPeers.end())
+		BOOST_THROW_EXCEPTION(LogicError() << errinfo_str("Incoming trade, but peer is unknown"));
+
+	auto peerId = it->second;
+
+	Order::Ptr order;
+	for(const auto& broker : m_brokers)
+	{
+		order = broker->order(trade.orderId);
+		if(order)
+			break;
+	}
+	if(!order)
+		BOOST_THROW_EXCEPTION(LogicError() << errinfo_str("Received trade, but can't find corresponding broker"));
+
+	LOG(INFO) << "BrokerServer: sending trade";
+
+	zmq::message_t msgPeerId(peerId.size());
+	memcpy(msgPeerId.data(), peerId.data(), peerId.size());
+
+	zmq::message_t msgDelimiter;
+
+	Json::Value root;
+	Json::Value tradeValue;
+	tradeValue["order-id"] = order->clientAssignedId();
+	tradeValue["price"] = trade.price.toDouble();
+	tradeValue["amount"] = trade.amount;
+	tradeValue["operation"] = trade.operation == Order::Operation::Buy ? "buy" : "sell";
+	tradeValue["account"] = trade.account;
+	tradeValue["security"] = trade.ticker;
+	tradeValue["execution-time"] = formatTradeTime(trade.timestamp, trade.useconds);
+	root["trade"] = tradeValue;
+
+	Json::FastWriter writer;
+	auto json = writer.write(root);
+
+	zmq::message_t msgJson(json.size());
+	memcpy(msgJson.data(), json.data(), json.size());
+
+	control.send(msgPeerId, ZMQ_SNDMORE);
+	control.send(msgDelimiter, ZMQ_SNDMORE);
+	control.send(msgJson, 0);
+	LOG(INFO) << "Trade: " << json;
+}
+
 void BrokerServer::orderCallback(const Order::Ptr& order)
 {
 	LOG(INFO) << "BrokerServer::orderCallback: " << order->stringRepresentation();
@@ -240,6 +304,22 @@ void BrokerServer::orderCallback(const Order::Ptr& order)
 	m_orderSocket->send(msg, 0);
 }
 
+void BrokerServer::tradeCallback(const Trade& trade)
+{
+	LOG(INFO) << "BrokerServer::tradeCallback";
+	if(!m_tradeSocket)
+	{
+		m_tradeSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_PUSH);
+		m_tradeSocket->connect("inproc://trades-socket");
+		LOG(INFO) << "Connecting to socket";
+	}
+
+	zmq::message_t msg(sizeof(trade));
+	memcpy(msg.data(), (void*)&trade, sizeof(trade));
+
+	m_tradeSocket->send(msg, 0);
+}
+
 Broker::Ptr BrokerServer::findBrokerForAccount(const std::string& account)
 {
 	for(const auto& broker : m_brokers)
@@ -249,5 +329,10 @@ Broker::Ptr BrokerServer::findBrokerForAccount(const std::string& account)
 			return broker;
 	}
 	return Broker::Ptr();
+}
+
+std::string BrokerServer::formatTradeTime(uint64_t timestamp, uint32_t usecond)
+{
+	return ""; // TODO
 }
 

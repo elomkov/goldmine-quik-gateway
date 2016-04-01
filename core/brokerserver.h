@@ -28,9 +28,13 @@ private:
 	void handleCommand(const Json::Value& root, const byte_array& peerId);
 
 	void handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t& stateSocket);
+	void handleSocketTrades(zmq::socket_t& control, zmq::socket_t& tradesSocket);
 	void orderCallback(const Order::Ptr& order);
+	void tradeCallback(const Trade& trade);
 
 	Broker::Ptr findBrokerForAccount(const std::string& account);
+
+	std::string formatTradeTime(uint64_t timestamp, uint32_t usecond);
 
 private:
 	bool m_running;
@@ -41,6 +45,7 @@ private:
 	std::vector<Broker::Ptr> m_brokers;
 	std::map<int, byte_array> m_orderPeers;
 	std::unique_ptr<zmq::socket_t> m_orderSocket;
+	std::unique_ptr<zmq::socket_t> m_tradeSocket;
 };
 
 #endif /* CORE_BROKERSERVER_H_ */
