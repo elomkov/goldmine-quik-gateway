@@ -38,6 +38,7 @@ set(src
 	core/datasink.cpp
 	core/quotesourceserver.cpp
 	core/quotetable.cpp
+
 	core/brokers/virtualbroker.cpp
 	
 	core/xltable/xlparser.cpp

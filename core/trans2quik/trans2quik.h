@@ -53,6 +53,39 @@ public:
 	long (*TRANS2QUIK_UNSUBSCRIBE_ORDERS)();
 	long (*TRANS2QUIK_UNSUBSCRIBE_TRADES)();
 
+	long (*TRANS2QUIK_TRADE_DATE) (long nTradeDescriptor);
+	long (*TRANS2QUIK_TRADE_SETTLE_DATE) (long nTradeDescriptor);
+	long (*TRANS2QUIK_TRADE_TIME) (long nTradeDescriptor);
+	long (*TRANS2QUIK_TRADE_IS_MARGINAL) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_ACCRUED_INT) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_YIELD) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_TS_COMMISSION) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_CLEARING_CENTER_COMMISSION) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_EXCHANGE_COMMISSION) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_TRADING_SYSTEM_COMMISSION) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_PRICE2) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_REPO_RATE) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_REPO_VALUE) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_REPO2_VALUE) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_ACCRUED_INT2) (long nTradeDescriptor);
+	long (*TRANS2QUIK_TRADE_REPO_TERM) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_START_DISCOUNT) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_LOWER_DISCOUNT) (long nTradeDescriptor);
+	double (*TRANS2QUIK_TRADE_UPPER_DISCOUNT) (long nTradeDescriptor);
+	long (*TRANS2QUIK_TRADE_BLOCK_SECURITIES) (long nTradeDescriptor);
+
+	LPTSTR (*TRANS2QUIK_TRADE_CURRENCY) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_SETTLE_CURRENCY) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_SETTLE_CODE) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_ACCOUNT) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_BROKERREF) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_CLIENT_CODE) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_USERID) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_FIRMID) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_PARTNER_FIRMID) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_EXCHANGE_CODE) (long nTradeDescriptor);
+	LPTSTR (*TRANS2QUIK_TRADE_STATION_ID) (long nTradeDescriptor);
+
 private:
 	HANDLE m_handle;
 };
