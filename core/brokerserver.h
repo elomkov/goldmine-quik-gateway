@@ -44,6 +44,7 @@ private:
 	std::string m_controlEp;
 	std::vector<Broker::Ptr> m_brokers;
 	std::map<int, byte_array> m_orderPeers;
+	std::map<std::pair<byte_array, int>, int> m_clientIdToLocalId;
 	std::unique_ptr<zmq::socket_t> m_orderSocket;
 	std::unique_ptr<zmq::socket_t> m_tradeSocket;
 };

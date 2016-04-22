@@ -9,7 +9,7 @@
 #include "exceptions.h"
 #include "log.h"
 
-static int gs_id = 1;
+static int gs_id = 1; // TODO make std::atomic_int ?
 QuikBroker* QuikBroker::m_instance;
 std::unique_ptr<Trans2QuikApi> QuikBroker::m_quik;
 
@@ -79,7 +79,7 @@ std::pair<std::string, std::string> splitStringByTwo(const std::string& str, cha
 
 static std::string cp1251_to_utf8(const char *str)
 {
-	std::string res;	
+	std::string res;
 	int result_u, result_c;
 
 	result_u = MultiByteToWideChar(1251, 0, str, -1, 0, 0);
@@ -184,6 +184,19 @@ void QuikBroker::submitOrder(const Order::Ptr& order)
 void QuikBroker::cancelOrder(const Order::Ptr& order)
 {
 	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
+	auto it = m_orderIdMap.find(order->localId());
+	if(it == m_orderIdMap.end())
+		BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Unable to find Quik order ID"));
+	
+	int transactionId = gs_id++;
+	auto transactionString = makeKillOrderString(order, transactionId, it->second);
+
+	long extendedErrorCode;
+	std::array<char, 512> buffer;
+	LOG(DEBUG) << "Sending transaction: " << transactionString;
+	long rc = m_quik->TRANS2QUIK_SEND_ASYNC_TRANSACTION((LPSTR)transactionString.c_str(), &extendedErrorCode, buffer.data(), buffer.size());
+	if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
+		BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str(std::string("Unable to send transaction: ") + buffer.data()));
 }
 
 void QuikBroker::registerOrderCallback(const OrderCallback& callback)
@@ -279,28 +292,26 @@ void QuikBroker::transactionReplyCallback(long result, long errorCode, long tran
 	LOG(DEBUG) << "Transaction reply: " << transactionId << "; result: " << result;
 
 	auto orderIt = m_instance->m_unsubmittedOrders.find(transactionId);
-	if(orderIt == m_instance->m_unsubmittedOrders.end())
+	if(orderIt != m_instance->m_unsubmittedOrders.end())
 	{
-		LOG(WARNING) << "Reply with unknown transactionID";
-		return;
-	}
-	auto order = orderIt->second;
-	m_instance->m_unsubmittedOrders.erase(orderIt);
+		auto order = orderIt->second;
+		m_instance->m_unsubmittedOrders.erase(orderIt);
 
-	if(result == Trans2QuikApi::TRANS2QUIK_SUCCESS)
-	{
-		m_instance->m_pendingOrders[orderNum] = order;
-		m_instance->m_orderIdMap[orderNum] = order->clientAssignedId();
-		order->updateState(Order::State::Submitted);
-	}
-	else
-	{
-		m_instance->m_retiredOrders.push_back(order);
-		order->updateState(Order::State::Rejected);
-		order->setMessage(cp1251_to_utf8(transactionReplyMessage));
-	}
+		if(result == Trans2QuikApi::TRANS2QUIK_SUCCESS)
+		{
+			m_instance->m_pendingOrders[orderNum] = order;
+			m_instance->m_orderIdMap[order->localId()] = orderNum;
+			order->updateState(Order::State::Submitted);
+		}
+		else
+		{
+			m_instance->m_retiredOrders.push_back(order);
+			order->updateState(Order::State::Rejected);
+			order->setMessage(cp1251_to_utf8(transactionReplyMessage));
+		}
 
-	m_instance->executeOrderStateCallbacks(order);
+		m_instance->executeOrderStateCallbacks(order);
+	}
 }
 
 void QuikBroker::orderStatusCallback(long mode, DWORD transactionId, double number,
@@ -420,6 +431,25 @@ std::string QuikBroker::makeTransactionStringForOrder(const Order::Ptr& order, i
 				accountString.c_str(), orderTypeCode, transactionId, classCode.c_str(), secCode.c_str(), operationCode, priceStr.c_str(), order->amount());
 		return std::string(buf.data(), stringSize);
 	}
+}
+
+std::string QuikBroker::makeKillOrderString(const Order::Ptr& order, int transactionId, double orderKey)
+{
+	std::string classCode, secCode;
+	try
+	{
+		std::tie(classCode, secCode) = splitStringByTwo(order->security(), '#');
+	}
+	catch(ParameterError& e)
+	{
+		e << errinfo_str("Invalid security ID, should be of the following form: CLASSCODE#SECCODE");
+		throw e;
+	}
+
+	std::array<char, 1024> buf;
+	int stringSize = snprintf(buf.data(), 1024, "TRANS_ID=%d;CLASSCODE=%s;SECCODE=%s;ACTION=KILL_ORDER;ORDER_KEY=%lld",
+			transactionId, classCode.c_str(), secCode.c_str(), (uint64_t)orderKey);
+	return std::string(buf.data(), stringSize);
 }
 
 void QuikBroker::executeOrderStateCallbacks(const Order::Ptr& order)

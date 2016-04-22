@@ -42,6 +42,7 @@ private:
 	static void __stdcall tradeCallback(long mode, double number, double orderNumber, LPSTR classCode, LPSTR secCode, double price, long quantity, double volume, long isSell, long tradeDescriptor);
 
 	std::string makeTransactionStringForOrder(const Order::Ptr& order, int transactionId);
+	std::string makeKillOrderString(const Order::Ptr& order, int transactionId, double orderKey);
 
 	void executeOrderStateCallbacks(const Order::Ptr& order);
 	void executeTradeCallback(const Trade& trade);

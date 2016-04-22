@@ -178,7 +178,34 @@ void BrokerServer::handleCommand(const Json::Value& root, const byte_array& peer
 		auto brokerOrder = std::make_shared<Order>(id, account, security, price, amount, op, t);
 
 		m_orderPeers[brokerOrder->localId()] = peerId;
+		m_clientIdToLocalId[std::make_pair(peerId, brokerOrder->clientAssignedId())] = brokerOrder->localId();
 		broker->submitOrder(brokerOrder);
+	}
+	if(!root["cancel-order"].isNull())
+	{
+		auto jsonOrder = root["cancel-order"];
+		int id = jsonOrder["id"].asInt();
+		if(id == 0)
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("No ID specified for order cancellation"));
+
+		auto account = jsonOrder["account"].asString();
+		auto broker = findBrokerForAccount(account);
+		if(!broker)
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Unable to find broker for account: " + account));
+
+		auto localIdIt = m_clientIdToLocalId.find(std::make_pair(peerId, id));
+		if(localIdIt == m_clientIdToLocalId.end())
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Unable to find order with given ID"));
+
+		auto order = broker->order(localIdIt->second);
+		if(order)
+		{
+			broker->cancelOrder(order);
+		}
+		else
+		{
+			BOOST_THROW_EXCEPTION(ParameterError() << errinfo_str("Unable to find order with given ID"));
+		}
 	}
 }
 
