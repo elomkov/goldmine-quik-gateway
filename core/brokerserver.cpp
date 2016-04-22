@@ -218,6 +218,10 @@ void BrokerServer::handleSocketStateUpdate(zmq::socket_t& control, zmq::socket_t
 	Json::Value orderValue;
 	orderValue["id"] = order->clientAssignedId();
 	orderValue["new-state"] = serializeOrderState(order->state());
+	if(!order->message().empty())
+	{
+		orderValue["message"] = order->message();
+	}
 	root["order"] = orderValue;
 
 	Json::FastWriter writer;

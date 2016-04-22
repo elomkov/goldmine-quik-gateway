@@ -60,6 +60,10 @@ public:
 
 	std::string stringRepresentation() const;
 
+	void setMessage(const std::string& message) { m_message = message; }
+
+	std::string message() const { return m_message; }
+
 private:
 	int m_id;
 	int m_clientAssignedId;
@@ -72,6 +76,8 @@ private:
 	OrderType m_type;
 
 	State m_state;
+
+	std::string m_message;
 };
 
 struct Trade

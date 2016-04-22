@@ -1,17 +1,21 @@
 
 #include "quikbroker.h"
-#include "exceptions.h"
+#include "core/broker.h"
+
 #include <stdexcept>
 #include <vector>
 #include <windows.h>
 
+#include "exceptions.h"
 #include "log.h"
 
-static int gs_id = 0;
+static int gs_id = 1;
+QuikBroker* QuikBroker::m_instance;
+std::unique_ptr<Trans2QuikApi> QuikBroker::m_quik;
 
 using namespace boost;
 
-time_t _mkgmtime(const struct tm *tm) 
+time_t mkgmtime(const struct tm *tm)
 {
 	// Month-to-day offset for non-leap-years.
 	static const int month_day[12] =
@@ -39,6 +43,28 @@ time_t _mkgmtime(const struct tm *tm)
 	return rt < 0 ? -1 : rt;
 }
 
+void removeTrailingZeros(std::string& s)
+{
+	if(s.find('.') != std::string::npos)
+	{
+		size_t newLength = s.size() - 1;
+		while(s[newLength] == '0')
+		{
+			newLength--;
+		}
+
+		if(s[newLength] == '.')
+		{
+			newLength--;
+		}
+
+		if(newLength != s.size() - 1)
+		{
+			s.resize(newLength + 1);
+		}
+	}
+}
+
 std::pair<std::string, std::string> splitStringByTwo(const std::string& str, char c)
 {
 	auto charPosition = str.find(c);
@@ -49,6 +75,42 @@ std::pair<std::string, std::string> splitStringByTwo(const std::string& str, cha
 	auto second = str.substr(charPosition + 1, std::string::npos);
 
 	return std::make_pair(first, second);
+}
+
+static std::string cp1251_to_utf8(const char *str)
+{
+	std::string res;	
+	int result_u, result_c;
+
+	result_u = MultiByteToWideChar(1251, 0, str, -1, 0, 0);
+
+	if (!result_u)
+		return std::string();
+
+	std::vector<wchar_t> ures(result_u);
+
+	if(!MultiByteToWideChar(1251, 0, str, -1, ures.data(), result_u))
+	{
+		return std::string();
+	}
+
+
+	result_c = WideCharToMultiByte(CP_UTF8, 0, ures.data(), -1, 0, 0, 0, 0);
+
+	if(!result_c)
+	{
+		return std::string();
+	}
+
+	std::vector<char> cres(result_c);
+
+	if(!WideCharToMultiByte( CP_UTF8, 0, ures.data(), -1, cres.data(), result_c, 0, 0))
+	{
+		return std::string();
+	}
+
+	res.assign(cres.begin(), cres.end());
+	return res;
 }
 
 static std::wstring utf8toUtf16(const std::string & str)
@@ -72,17 +134,29 @@ static std::wstring utf8toUtf16(const std::string & str)
 
 QuikBroker::QuikBroker(const std::map<std::string, std::string>& config)
 {
+	assert(!m_instance);
+	m_instance = this;
+
 	auto quikDllPath = config.at("dll_path");
-	m_quik = std::make_unique<Trans2QuikApi>(utf8toUtf16(quikDllPath));
+	LOG(DEBUG) << "Loading dll at path: " << quikDllPath;
+	m_quik = std::make_unique<Trans2QuikApi>(quikDllPath);
+	LOG(DEBUG) << "DLL loaded";
 	auto quikPath = config.at("quik_path");
 	long extendedErrorCode;
 	std::array<char, 512> buffer;
-	long rc = m_quik->TRANS2QUIK_CONNECT(quikPath.c_str(), &extendedErrorCode, buffer.data(), buffer.size());
+	LOG(INFO) << "Connecting to QUIK: " << quikPath;
+	long rc;
+	rc = m_quik->TRANS2QUIK_SET_CONNECTION_STATUS_CALLBACK(&QuikBroker::connectionStatusCallback, &extendedErrorCode, (LPSTR)buffer.data(), buffer.size());
 	if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
-		BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Error while connecting to quik"));
-
-	assert(!m_instance);
-	m_instance = this;
+	{
+		BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Unable to set connection callback: " + std::string(buffer.data())));
+	}
+	rc = m_quik->TRANS2QUIK_CONNECT(quikPath.c_str(), &extendedErrorCode, buffer.data(), buffer.size());
+	if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
+	{
+		BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Error while connecting to quik: " + std::string(buffer.data())));
+	}
+	LOG(INFO) << "Connected to QUIK";
 }
 
 QuikBroker::~QuikBroker()
@@ -101,7 +175,8 @@ void QuikBroker::submitOrder(const Order::Ptr& order)
 
 	long extendedErrorCode;
 	std::array<char, 512> buffer;
-	long rc = m_quik->TRANS2QUIK_SEND_ASYNC_TRANSACTION(transactionString.c_str(), &extendedErrorCode, buffer.data(), buffer.size());
+	LOG(DEBUG) << "Sending transaction: " << transactionString;
+	long rc = m_quik->TRANS2QUIK_SEND_ASYNC_TRANSACTION((LPSTR)transactionString.c_str(), &extendedErrorCode, buffer.data(), buffer.size());
 	if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
 		BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str(std::string("Unable to send transaction: ") + buffer.data()));
 }
@@ -130,15 +205,40 @@ void QuikBroker::registerTradeCallback(const TradeCallback& callback)
 Order::Ptr QuikBroker::order(int localId)
 {
 	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
+	for(const auto& order : m_pendingOrders)
+	{
+		if((order.second)->localId() == localId)
+			return order.second;
+	}
+
+	for(const auto& order : m_retiredOrders)
+	{
+		if(order->localId() == localId)
+			return order;
+	}
+
+	for(const auto& order : m_unsubmittedOrders)
+	{
+		if((order.second)->localId() == localId)
+			return order.second;
+	}
+
+	return Order::Ptr();
 }
 
 std::list<std::string> QuikBroker::accounts()
 {
+	// TODO
+	std::list<std::string> result;
+	result.push_back("4110BHX");
+	return result;
 }
 
 std::list<Position> QuikBroker::positions()
 {
+	// TODO
 	boost::unique_lock<boost::recursive_mutex> lock(m_mutex);
+	return std::list<Position>();
 }
 
 
@@ -163,17 +263,13 @@ void QuikBroker::connectionStatusCallback(long event, long errorCode, LPSTR info
 		if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
 			BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Unable to subscribe to orders"));
 
-		rc = m_quik->TRANS2QUIK_START_ORDERS(&QuikBroker::orderStatusCallback);
-		if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
-			BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Unable to start orders stream"));
+		m_quik->TRANS2QUIK_START_ORDERS(&QuikBroker::orderStatusCallback);
 
 		rc = m_quik->TRANS2QUIK_SUBSCRIBE_TRADES("", "");
 		if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
 			BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Unable to subscribe to trades"));
 
-		rc = m_quik->TRANS2QUIK_START_TRADES(&QuikBroker::tradeCallback);
-		if(rc != Trans2QuikApi::TRANS2QUIK_SUCCESS)
-			BOOST_THROW_EXCEPTION(ExternalApiError() << errinfo_str("Unable to start trades stream"));
+		m_quik->TRANS2QUIK_START_TRADES(&QuikBroker::tradeCallback);
 	}
 }
 
@@ -182,84 +278,86 @@ void QuikBroker::transactionReplyCallback(long result, long errorCode, long tran
 	boost::unique_lock<boost::recursive_mutex> lock(m_instance->m_mutex);
 	LOG(DEBUG) << "Transaction reply: " << transactionId << "; result: " << result;
 
-	auto orderIt = m_unsubmittedOrders.find(transactionId);
-	if(orderIt == m_unsubmittedOrders.end())
+	auto orderIt = m_instance->m_unsubmittedOrders.find(transactionId);
+	if(orderIt == m_instance->m_unsubmittedOrders.end())
 	{
 		LOG(WARNING) << "Reply with unknown transactionID";
 		return;
 	}
-	auto order = *orderIt;
-	m_unsubmittedOrders.erase(orderIt);
+	auto order = orderIt->second;
+	m_instance->m_unsubmittedOrders.erase(orderIt);
 
 	if(result == Trans2QuikApi::TRANS2QUIK_SUCCESS)
 	{
-		m_pendingOrders[orderNum] = order;
-		m_orderIdMap[orderNum] = order->clientAssignedId();
+		m_instance->m_pendingOrders[orderNum] = order;
+		m_instance->m_orderIdMap[orderNum] = order->clientAssignedId();
 		order->updateState(Order::State::Submitted);
 	}
 	else
 	{
-		m_retiredOrders.push_back(order);
+		m_instance->m_retiredOrders.push_back(order);
 		order->updateState(Order::State::Rejected);
+		order->setMessage(cp1251_to_utf8(transactionReplyMessage));
 	}
 
-	executeOrderStateCallbacks(order);
+	m_instance->executeOrderStateCallbacks(order);
 }
 
 void QuikBroker::orderStatusCallback(long mode, DWORD transactionId, double number,
 		LPSTR classCode, LPSTR secCode, double price, long balance, double volume, long isBuy, long status, long orderDescriptor)
 {
 	boost::unique_lock<boost::recursive_mutex> lock(m_instance->m_mutex);
-	LOG(DEBUG) << "Order status: " << number << "; status: " << status;
+	LOG(DEBUG) << "Order status: " << number << "; status: " << status << "; mode: " << mode;
 	// TODO handle other modes
 	if(mode == 0)
 	{
-		auto orderIt = m_pendingOrders.find(number);
-		if(orderIt == m_pendingOrders.end())
+		auto orderIt = m_instance->m_pendingOrders.find(number);
+		if(orderIt == m_instance->m_pendingOrders.end())
 		{
 			LOG(WARNING) << "Incoming order status for unknown order";
 			return;
 		}
 
-		auto order = *orderIt;
+		auto order = orderIt->second;
 		if((status != 1) && (status != 2)) // Order executed
 		{
 			if(balance == 0) // Order fully filled
 			{
 				order->updateState(Order::State::Executed);
-				m_pendingOrders.erase(orderIt);
-				m_retiredOrders.push_back(orderIt);
+				m_instance->m_pendingOrders.erase(orderIt);
+				m_instance->m_retiredOrders.push_back(order);
 			}
 			// TODO partial execution
 		}
 		else if(status == 2)
 		{
 			order->updateState(Order::State::Cancelled);
-			m_pendingOrders.erase(orderIt);
-			m_retiredOrders.push_back(orderIt);
+			m_instance->m_pendingOrders.erase(orderIt);
+			m_instance->m_retiredOrders.push_back(order);
 		}
 		else if(status == 1)
 		{
 			order->updateState(Order::State::Submitted);
+			return; // TransactionReply callback already notified client that order is submitted... Probably I should move it here
 		}
-		executeOrderStateCallbacks(order);
+		m_instance->executeOrderStateCallbacks(order);
 	}
 }
 
-void QuikBroker::tradeCallback(long mode, double number, double orderNumber, LPSTR classCode, double price, long quantity, double volume, long isSell, long tradeDescriptor)
+void QuikBroker::tradeCallback(long mode, double number, double orderNumber, LPSTR classCode, LPSTR secCode, double price, long quantity, double volume, long isSell, long tradeDescriptor)
 {
 	boost::unique_lock<boost::recursive_mutex> lock(m_instance->m_mutex);
 	if(mode == 0)
 	{
-		auto it = m_pendingOrders.find(orderNumber);
-		if(it == m_pendingOrders.end())
+		auto it = m_instance->m_pendingOrders.find(orderNumber);
+		if(it == m_instance->m_pendingOrders.end())
 		{
 			LOG(WARNING) << "Incoming trade for unknown order: " << orderNumber;
 			return;
 		}
-		auto order = *it;
+		auto order = it->second;
 		Trade trade;
-		trade.orderId = *it;
+		trade.orderId = it->first;
 		trade.amount = quantity;
 		trade.operation = (isSell ? Order::Operation::Sell : Order::Operation::Buy);
 		trade.account = order->account();
@@ -275,24 +373,26 @@ void QuikBroker::tradeCallback(long mode, double number, double orderNumber, LPS
 		tm.tm_hour = hms / 10000;
 		tm.tm_min = (hms % 10000) / 100;
 		tm.tm_sec = (hms % 100);
-		trade.timestamp = _mkgmtime(&tm);
+		trade.timestamp = mkgmtime(&tm);
 		trade.useconds = us;
 
-		executeTradeCallback(trade);
+		m_instance->executeTradeCallback(trade);
 	}
 }
 
 std::string QuikBroker::makeTransactionStringForOrder(const Order::Ptr& order, int transactionId)
 {
 	std::string account, clientCode;
+	std::string accountString;
 	try
 	{
 		std::tie(account, clientCode) = splitStringByTwo(order->account(), '#');
+		accountString = "ACCOUNT=" + account + ";CLIENT_CODE=" + clientCode;
 	}
 	catch(ParameterError& e)
 	{
-		e << errinfo("Invalid account ID, should be of the following form: ACCOUNT#CLIENT_CODE");
-		throw e;
+		account = order->account();
+		accountString = "ACCOUNT=" + account;
 	}
 
 	std::string classCode, secCode;
@@ -302,18 +402,23 @@ std::string QuikBroker::makeTransactionStringForOrder(const Order::Ptr& order, i
 	}
 	catch(ParameterError& e)
 	{
-		e << errinfo("Invalid security ID, should be of the following form: CLASSCODE#SECCODE");
+		e << errinfo_str("Invalid security ID, should be of the following form: CLASSCODE#SECCODE");
 		throw e;
 	}
 
-	if((order->type() == Order::Type::Market) || (order->type() == Order::Type::Limit))
+	if((order->type() == Order::OrderType::Market) || (order->type() == Order::OrderType::Limit))
 	{
 		std::array<char, 1024> buf;
-		char orderTypeCode = (order->type() == Order::Type::Market ? 'M' : 'L');
+		std::array<char, 32> priceBuf;
+		int priceLength = snprintf(priceBuf.data(), 32, "%f", order->price());
+		std::string priceStr(priceBuf.data(), priceLength);
+		removeTrailingZeros(priceStr);
+
+		char orderTypeCode = (order->type() == Order::OrderType::Market ? 'M' : 'L');
 		char operationCode = (order->operation() == Order::Operation::Buy ? 'B' : 'S');
-		int stringSize = snprintf(buf.data(), 1024, "ACCOUNT=%s;CLIENT_CODE=%s;TYPE=%c;TRANS_ID=%d;CLASSCODE=%s;SECCODE=%s;ACTION=NEW_CODE;OPERATION=%c;PRICE=%f;QUANTITY=%d;",
-				account.c_str(), clientCode.c_str(), orderTypeCode, transactionId, classCode.c_str(), secCode.c_str(), operationCode, order->price(), order->amount());
-		return std::string(buf.data(), stringSize + 1);
+		int stringSize = snprintf(buf.data(), 1024, "%s;TYPE=%c;TRANS_ID=%d;CLASSCODE=%s;SECCODE=%s;ACTION=NEW_ORDER;OPERATION=%c;PRICE=%s;QUANTITY=%d;",
+				accountString.c_str(), orderTypeCode, transactionId, classCode.c_str(), secCode.c_str(), operationCode, priceStr.c_str(), order->amount());
+		return std::string(buf.data(), stringSize);
 	}
 }
 

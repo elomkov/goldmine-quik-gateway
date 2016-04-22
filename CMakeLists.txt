@@ -31,6 +31,8 @@ set(src
 	binary/bytearrayparser.cpp
 	binary/rawbytearrayparser.cpp
 	
+	core/trans2quik/trans2quik.cpp
+
 	core/broker.cpp
 	core/brokerserver.cpp
 	core/client.cpp
@@ -40,6 +42,7 @@ set(src
 	core/quotetable.cpp
 
 	core/brokers/virtualbroker.cpp
+	core/brokers/quikbroker/quikbroker.cpp
 	
 	core/xltable/xlparser.cpp
 	core/xltable/xltable.cpp

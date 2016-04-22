@@ -15,6 +15,7 @@
 #include "core/brokerserver.h"
 #include "core/quotetable.h"
 #include "core/brokers/virtualbroker.h"
+#include "core/brokers/quikbroker/quikbroker.h"
 #include "optionparser/optionparser.h"
 
 #include <fstream>
@@ -169,6 +170,10 @@ int main(int argc, char** argv)
 
 	BrokerServer brokerServer(ctx, "tcp://*:5520");
 	brokerServer.addBroker(broker);
+	std::map<std::string, std::string> config;
+	config["dll_path"] = R"(C:\Program Files (x86)\Info\TRANS2QUIK.DLL)";
+	config["quik_path"] = R"(C:\Program Files (x86)\Info)";
+	brokerServer.addBroker(std::make_shared<QuikBroker>(config));
 
 	brokerServer.start();
 

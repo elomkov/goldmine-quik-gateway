@@ -35,11 +35,11 @@ public:
 	virtual std::list<Position> positions() override;
 
 private:
-	static void connectionStatusCallback(long event, long errorCode, LPSTR infoMessage);
-	static void transactionReplyCallback(long result, long errorCode, long transactionReplyCode, DWORD transactionId, double orderNum, LPSTR transactionReplyMessage);
-	static void orderStatusCallback(long mode, DWORD transactionId, double number,
+	static void __stdcall connectionStatusCallback(long event, long errorCode, LPSTR infoMessage);
+	static void __stdcall transactionReplyCallback(long result, long errorCode, long transactionReplyCode, DWORD transactionId, double orderNum, LPSTR transactionReplyMessage);
+	static void __stdcall orderStatusCallback(long mode, DWORD transactionId, double number,
 			LPSTR classCode, LPSTR secCode, double price, long balance, double volume, long isBuy, long status, long orderDescriptor);
-	static void tradeCallback(long mode, double number, double orderNumber, LPSTR classCode, double price, long quantity, double volume, long isSell, long tradeDescriptor);
+	static void __stdcall tradeCallback(long mode, double number, double orderNumber, LPSTR classCode, LPSTR secCode, double price, long quantity, double volume, long isSell, long tradeDescriptor);
 
 	std::string makeTransactionStringForOrder(const Order::Ptr& order, int transactionId);
 
@@ -48,7 +48,7 @@ private:
 
 private:
 	static QuikBroker* m_instance;
-	std::unique_ptr<Trans2QuikApi> m_quik;
+	static std::unique_ptr<Trans2QuikApi> m_quik;
 	std::map<int, Order::Ptr> m_unsubmittedOrders;
 
 	// yes, trans2quik api uses double to identify orders
